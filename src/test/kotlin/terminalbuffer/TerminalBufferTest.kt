@@ -374,4 +374,91 @@ class TerminalBufferTest {
         val content = buf.getFullContent()
         assertEquals("AAAAA\nBBBBB\n", content)
     }
+
+    @Test
+    fun `1x1 buffer write single char scrolls immediately`() {
+        // Writing at the last column triggers wrap, which scrolls on a 1x1
+        val buf = TerminalBuffer(1, 1)
+        buf.write("A")
+        assertEquals("", buf.getScreenLine(0))
+        assertEquals(1, buf.getScrollbackSize())
+        assertEquals("A", buf.getScrollbackLine(0))
+    }
+
+    @Test
+    fun `1x1 buffer write two chars scrolls both`() {
+        val buf = TerminalBuffer(1, 1)
+        buf.write("AB")
+        assertEquals("", buf.getScreenLine(0))
+        assertEquals(2, buf.getScrollbackSize())
+        assertEquals("A", buf.getScrollbackLine(0))
+        assertEquals("B", buf.getScrollbackLine(1))
+    }
+
+    @Test
+    fun `wide buffer write long string`() {
+        val buf = TerminalBuffer(200, 3)
+        val text = "X".repeat(200)
+        buf.write(text)
+        assertEquals(text, buf.getScreenLine(0))
+        assertEquals(0, buf.cursorCol)
+        assertEquals(1, buf.cursorRow)
+    }
+
+    @Test
+    fun `maxScrollbackSize 1 keeps only one line`() {
+        val buf = TerminalBuffer(3, 1, maxScrollbackSize = 1)
+        buf.write("AAA") // scroll
+        buf.write("BBB") // scroll, evicts AAA
+        buf.write("CCC") // scroll, evicts BBB
+        assertEquals(1, buf.getScrollbackSize())
+        assertEquals("CCC", buf.getScrollbackLine(0))
+    }
+
+    @Test
+    fun `write string longer than entire screen`() {
+        val buf = TerminalBuffer(3, 2)
+        buf.write("ABCDEFGHIJKL")
+        assertEquals("JKL", buf.getScreenLine(0))
+        assertEquals("", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `write after setting cursor to middle of screen`() {
+        val buf = TerminalBuffer(10, 5)
+        buf.setCursorPosition(col = 3, row = 2)
+        buf.write("Hi")
+        assertEquals(5, buf.cursorCol)
+        assertEquals(2, buf.cursorRow)
+        assertEquals("Hi", buf.getScreenLine(2).trim())
+    }
+
+    @Test
+    fun `multiple writes accumulate correctly`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("Hello")
+        buf.write(" World")
+        assertEquals("Hello Worl", buf.getScreenLine(0))
+        assertEquals("d", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `attributes change between writes and cells preserve their own`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.setAttributes(fg = Color.RED)
+        buf.write("A")
+        buf.setAttributes(fg = Color.BLUE)
+        buf.write("B")
+        assertEquals(Color.RED, buf.getCell(0, 0).attributes.foreground)
+        assertEquals(Color.BLUE, buf.getCell(1, 0).attributes.foreground)
+    }
+
+    @Test
+    fun `getScreenContent with mixed trailing spaces`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("Hello")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("Hi   there")
+        assertEquals("Hello\nHi   there\n", buf.getScreenContent())
+    }
 }
