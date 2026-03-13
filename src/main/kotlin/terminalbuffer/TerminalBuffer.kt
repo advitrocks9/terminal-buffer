@@ -20,6 +20,7 @@ class TerminalBuffer(
     }
 
     internal val screen = Array(height) { Line(width) }
+    internal val scrollback = mutableListOf<Line>()
 
     var cursorRow: Int = 0
         private set
@@ -67,6 +68,73 @@ class TerminalBuffer(
 
     fun setAttributes(attributes: CellAttributes) {
         currentAttributes = attributes
+    }
+
+    // In real terminals, autowrap is a mode that can be toggled. We always autowrap here.
+    fun write(text: String) {
+        for (c in text) {
+            if (c == '\n') {
+                advanceCursorToNextLine()
+                continue
+            }
+            screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
+            cursorCol++
+            if (cursorCol >= width) {
+                advanceCursorToNextLine()
+            }
+        }
+    }
+
+    /**
+     * Inserts text at cursor position, shifting existing content to the right.
+     * Characters pushed past the end of the line are lost (not cascaded to next line).
+     */
+    fun insert(text: String) {
+        for (c in text) {
+            if (c == '\n') {
+                advanceCursorToNextLine()
+                continue
+            }
+            val line = screen[cursorRow]
+            for (i in (width - 1) downTo (cursorCol + 1)) {
+                line[i] = line[i - 1]
+            }
+            line[cursorCol] = Cell(c, currentAttributes)
+            cursorCol++
+            if (cursorCol >= width) {
+                advanceCursorToNextLine()
+            }
+        }
+    }
+
+    /**
+     * Fills the current cursor's row with [char] using [currentAttributes].
+     * Cursor position does not change.
+     */
+    fun fillLine(char: Char = Cell.EMPTY_CHAR) {
+        screen[cursorRow].fill(char, currentAttributes)
+    }
+
+    private fun advanceCursorToNextLine() {
+        cursorCol = 0
+        if (cursorRow < height - 1) {
+            cursorRow++
+        } else {
+            scrollUp()
+        }
+    }
+
+    private fun scrollUp() {
+        if (maxScrollbackSize > 0) {
+            scrollback.add(screen[0].copyOf())
+            if (scrollback.size > maxScrollbackSize) {
+                scrollback.removeAt(0)
+            }
+        }
+        for (i in 1..<height) {
+            screen[i - 1] = screen[i]
+        }
+        screen[height - 1] = Line(width)
     }
 
     fun getCell(
