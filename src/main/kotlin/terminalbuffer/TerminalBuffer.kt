@@ -137,6 +137,29 @@ class TerminalBuffer(
         screen[height - 1] = Line(width)
     }
 
+    /**
+     * Inserts a new empty line at the bottom of the screen.
+     * The top screen line scrolls into scrollback, all lines shift up.
+     */
+    fun insertLine() {
+        scrollUp()
+    }
+
+    /** Clears all screen lines and resets cursor. Does not clear scrollback. */
+    fun clearScreen() {
+        for (i in 0..<height) {
+            screen[i] = Line(width)
+        }
+        cursorRow = 0
+        cursorCol = 0
+    }
+
+    /** Clears both the screen and scrollback, resets cursor. */
+    fun clearAll() {
+        clearScreen()
+        scrollback.clear()
+    }
+
     fun getCell(
         col: Int,
         row: Int,
@@ -146,6 +169,28 @@ class TerminalBuffer(
 
     fun getScreenContent(): String =
         buildString {
+            for (row in 0..<height) {
+                if (row > 0) append('\n')
+                append(screen[row].getText())
+            }
+        }
+
+    fun getScrollbackLine(row: Int): String = scrollback[row].getText()
+
+    fun getScrollbackCell(
+        col: Int,
+        row: Int,
+    ): Cell = scrollback[row][col]
+
+    fun getScrollbackSize(): Int = scrollback.size
+
+    /** Returns scrollback + screen content joined with newlines. */
+    fun getFullContent(): String =
+        buildString {
+            for (i in scrollback.indices) {
+                append(scrollback[i].getText())
+                append('\n')
+            }
             for (row in 0..<height) {
                 if (row > 0) append('\n')
                 append(screen[row].getText())
