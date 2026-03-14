@@ -34,16 +34,20 @@ internal class Line(val width: Int) {
         }
     }
 
-    /** Returns line text with trailing spaces trimmed. */
+    /** Returns line text with trailing spaces trimmed, skipping wide extension cells. */
     fun getText(): String =
         buildString {
-            for (cell in cells) append(cell.char)
+            for (cell in cells) {
+                if (!cell.isWideExtension) append(cell.char)
+            }
         }.trimEnd()
 
     /** Returns full line text without trimming (useful for testing). */
     fun getTextRaw(): String =
         buildString {
-            for (cell in cells) append(cell.char)
+            for (cell in cells) {
+                if (!cell.isWideExtension) append(cell.char)
+            }
         }
 
     fun copyOf(): Line {

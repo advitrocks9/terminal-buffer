@@ -77,10 +77,16 @@ class TerminalBuffer(
                 advanceCursorToNextLine()
                 continue
             }
-            screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
-            cursorCol++
-            if (cursorCol >= width) {
-                advanceCursorToNextLine()
+            val charWidth = CharWidths.charWidth(c)
+            if (charWidth == 2) {
+                writeWideChar(c)
+            } else {
+                clearWideCharIfOverwriting()
+                screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
+                cursorCol++
+                if (cursorCol >= width) {
+                    advanceCursorToNextLine()
+                }
             }
         }
     }
@@ -113,6 +119,39 @@ class TerminalBuffer(
      */
     fun fillLine(char: Char = Cell.EMPTY_CHAR) {
         screen[cursorRow].fill(char, currentAttributes)
+    }
+
+    private fun writeWideChar(c: Char) {
+        if (cursorCol >= width - 1) {
+            advanceCursorToNextLine()
+        }
+        clearWideCharIfOverwriting()
+        screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
+        if (cursorCol + 1 < width) {
+            clearWideCharIfOverwriting(cursorCol + 1)
+            screen[cursorRow][cursorCol + 1] = Cell(isWideExtension = true, attributes = currentAttributes)
+        }
+        cursorCol += 2
+        if (cursorCol >= width) {
+            advanceCursorToNextLine()
+        }
+    }
+
+    /**
+     * If the cell at [col] on the current row is part of a wide character,
+     * clear the other half to avoid rendering artifacts.
+     */
+    private fun clearWideCharIfOverwriting(col: Int = cursorCol) {
+        if (col >= width) return
+        val line = screen[cursorRow]
+        val cell = line[col]
+        if (cell.isWideExtension && col > 0) {
+            // We're overwriting the extension half — clear the primary
+            line[col - 1] = Cell(attributes = line[col - 1].attributes)
+        } else if (!cell.isWideExtension && col + 1 < width && line[col + 1].isWideExtension) {
+            // We're overwriting the primary half — clear the extension
+            line[col + 1] = Cell(attributes = line[col + 1].attributes)
+        }
     }
 
     private fun advanceCursorToNextLine() {

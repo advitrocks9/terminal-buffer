@@ -3,6 +3,8 @@ package terminalbuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class TerminalBufferTest {
     @Test
@@ -473,5 +475,64 @@ class TerminalBufferTest {
         buf.write("XXXXX")
         // Scrollback should still have the original line
         assertEquals("AAAAA", buf.getScrollbackLine(0))
+    }
+
+    @Test
+    fun `write CJK character occupies 2 cells`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16") // 世
+        assertEquals('\u4e16', buf.getCell(0, 0).char)
+        assertTrue(buf.getCell(1, 0).isWideExtension)
+    }
+
+    @Test
+    fun `cursor advances by 2 after writing wide char`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16") // 世
+        assertEquals(2, buf.cursorCol)
+    }
+
+    @Test
+    fun `getText returns wide char once not twice`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16") // 世
+        assertEquals("\u4e16", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `wide char at end of line with only 1 cell left wraps`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("ABCD") // 4 chars, cursorCol = 4, only 1 cell left
+        buf.write("\u4e16") // needs 2 cells, should wrap
+        assertEquals("ABCD", buf.getScreenLine(0))
+        assertEquals("\u4e16", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `overwrite first cell of wide char clears extension`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16") // occupies cells 0,1
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.write("X") // overwrite primary cell
+        assertEquals('X', buf.getCell(0, 0).char)
+        assertFalse(buf.getCell(1, 0).isWideExtension)
+    }
+
+    @Test
+    fun `overwrite extension cell of wide char clears primary`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16") // occupies cells 0,1
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.write("Y") // overwrite extension cell
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(0, 0).char)
+        assertEquals('Y', buf.getCell(1, 0).char)
+    }
+
+    @Test
+    fun `mix of normal and wide characters`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("A\u4e16B") // A + 世(2 cells) + B = 4 cells
+        assertEquals("A\u4e16B", buf.getScreenLine(0))
+        assertEquals(4, buf.cursorCol)
     }
 }
