@@ -262,9 +262,16 @@ class TerminalBuffer(
     fun getCell(
         col: Int,
         row: Int,
-    ): Cell = screen[row][col]
+    ): Cell {
+        require(row in 0..<height) { "Row $row out of screen bounds (height=$height)" }
+        require(col in 0..<width) { "Column $col out of screen bounds (width=$width)" }
+        return screen[row][col]
+    }
 
-    fun getScreenLine(row: Int): String = screen[row].getText()
+    fun getScreenLine(row: Int): String {
+        require(row in 0..<height) { "Row $row out of screen bounds (height=$height)" }
+        return screen[row].getText()
+    }
 
     fun getScreenContent(): String =
         buildString {
@@ -274,12 +281,20 @@ class TerminalBuffer(
             }
         }
 
-    fun getScrollbackLine(row: Int): String = scrollback[row].getText()
+    fun getScrollbackLine(row: Int): String {
+        require(row in 0..<scrollback.size) { "Row $row out of scrollback bounds (size=${scrollback.size})" }
+        return scrollback[row].getText()
+    }
 
     fun getScrollbackCell(
         col: Int,
         row: Int,
-    ): Cell = scrollback[row][col]
+    ): Cell {
+        require(row in 0..<scrollback.size) { "Row $row out of scrollback bounds (size=${scrollback.size})" }
+        val line = scrollback[row]
+        require(col in 0..<line.width) { "Column $col out of scrollback line bounds (width=${line.width})" }
+        return line[col]
+    }
 
     fun getScrollbackSize(): Int = scrollback.size
 

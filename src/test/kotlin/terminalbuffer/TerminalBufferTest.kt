@@ -614,4 +614,49 @@ class TerminalBufferTest {
         assertEquals(0, buf.cursorCol)
         assertEquals(0, buf.cursorRow)
     }
+
+    @Test
+    fun `getCell out of row bounds throws`() {
+        val buf = TerminalBuffer(10, 5)
+        val ex1 = assertFailsWith<IllegalArgumentException> { buf.getCell(0, -1) }
+        assertTrue(ex1.message!!.contains("height=5"))
+        val ex2 = assertFailsWith<IllegalArgumentException> { buf.getCell(0, 5) }
+        assertTrue(ex2.message!!.contains("height=5"))
+    }
+
+    @Test
+    fun `getCell out of col bounds throws`() {
+        val buf = TerminalBuffer(10, 5)
+        val ex1 = assertFailsWith<IllegalArgumentException> { buf.getCell(-1, 0) }
+        assertTrue(ex1.message!!.contains("width=10"))
+        val ex2 = assertFailsWith<IllegalArgumentException> { buf.getCell(10, 0) }
+        assertTrue(ex2.message!!.contains("width=10"))
+    }
+
+    @Test
+    fun `getScreenLine out of bounds throws`() {
+        val buf = TerminalBuffer(10, 5)
+        val ex1 = assertFailsWith<IllegalArgumentException> { buf.getScreenLine(-1) }
+        assertTrue(ex1.message!!.contains("height=5"))
+        val ex2 = assertFailsWith<IllegalArgumentException> { buf.getScreenLine(5) }
+        assertTrue(ex2.message!!.contains("height=5"))
+    }
+
+    @Test
+    fun `getScrollbackLine out of bounds throws`() {
+        val buf = TerminalBuffer(5, 1)
+        buf.write("AAAAA") // scroll
+        val ex = assertFailsWith<IllegalArgumentException> { buf.getScrollbackLine(1) }
+        assertTrue(ex.message!!.contains("size=1"))
+    }
+
+    @Test
+    fun `getScrollbackCell out of bounds throws`() {
+        val buf = TerminalBuffer(5, 1)
+        buf.write("AAAAA") // scroll
+        val exRow = assertFailsWith<IllegalArgumentException> { buf.getScrollbackCell(0, 1) }
+        assertTrue(exRow.message!!.contains("size=1"))
+        val exCol = assertFailsWith<IllegalArgumentException> { buf.getScrollbackCell(5, 0) }
+        assertTrue(exCol.message!!.contains("width=5"))
+    }
 }
