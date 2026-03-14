@@ -461,4 +461,17 @@ class TerminalBufferTest {
         buf.write("Hi   there")
         assertEquals("Hello\nHi   there\n", buf.getScreenContent())
     }
+
+    @Test
+    fun `scrollback is not affected by subsequent screen writes`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAAAA") // row 0, wraps to row 1
+        buf.write("BBBBB") // row 1, wraps -> scroll. scrollback: [AAAAA]
+        assertEquals("AAAAA", buf.getScrollbackLine(0))
+        // Now overwrite row 0 (which was shifted from old row 1)
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.write("XXXXX")
+        // Scrollback should still have the original line
+        assertEquals("AAAAA", buf.getScrollbackLine(0))
+    }
 }

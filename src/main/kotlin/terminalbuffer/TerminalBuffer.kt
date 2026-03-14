@@ -20,7 +20,7 @@ class TerminalBuffer(
     }
 
     internal val screen = Array(height) { Line(width) }
-    internal val scrollback = mutableListOf<Line>()
+    private val scrollback = ScrollbackBuffer(maxScrollbackSize)
 
     var cursorRow: Int = 0
         private set
@@ -125,12 +125,8 @@ class TerminalBuffer(
     }
 
     private fun scrollUp() {
-        if (maxScrollbackSize > 0) {
-            scrollback.add(screen[0].copyOf())
-            if (scrollback.size > maxScrollbackSize) {
-                scrollback.removeAt(0)
-            }
-        }
+        // Defensive copy: scrollback gets its own copy of the line
+        scrollback.add(screen[0].copyOf())
         for (i in 1..<height) {
             screen[i - 1] = screen[i]
         }
@@ -187,8 +183,8 @@ class TerminalBuffer(
     /** Returns scrollback + screen content joined with newlines. */
     fun getFullContent(): String =
         buildString {
-            for (i in scrollback.indices) {
-                append(scrollback[i].getText())
+            for (line in scrollback.asSequence()) {
+                append(line.getText())
                 append('\n')
             }
             for (row in 0..<height) {
