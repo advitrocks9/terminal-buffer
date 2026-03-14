@@ -616,6 +616,60 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `insert wide char at start of line`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.insert("\u4e16") // 世 — width 2
+        assertEquals('\u4e16', buf.getCell(0, 0).char)
+        assertTrue(buf.getCell(1, 0).isWideExtension)
+        assertEquals('A', buf.getCell(2, 0).char)
+        assertEquals('B', buf.getCell(3, 0).char)
+        assertEquals(2, buf.cursorCol)
+    }
+
+    @Test
+    fun `insert wide char in middle pushing content right`() {
+        val buf = TerminalBuffer(8, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 2, row = 0)
+        buf.insert("\u4e16") // insert 世 at col 2
+        assertEquals('A', buf.getCell(0, 0).char)
+        assertEquals('B', buf.getCell(1, 0).char)
+        assertEquals('\u4e16', buf.getCell(2, 0).char)
+        assertTrue(buf.getCell(3, 0).isWideExtension)
+        assertEquals('C', buf.getCell(4, 0).char)
+        assertEquals('D', buf.getCell(5, 0).char)
+        assertEquals('E', buf.getCell(6, 0).char)
+    }
+
+    @Test
+    fun `insert wide char at last column wraps to next line`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.setCursorPosition(col = 4, row = 0)
+        buf.insert("\u4e16")
+        // wide char doesn't fit at col 4 (needs 2 cells), so advances to row 1 and places there
+        assertEquals(1, buf.cursorRow)
+        assertEquals(2, buf.cursorCol)
+        assertEquals('\u4e16', buf.getCell(0, 1).char)
+        assertTrue(buf.getCell(1, 1).isWideExtension)
+    }
+
+    @Test
+    fun `insert wide char splits existing wide pair at boundary clears orphan`() {
+        val buf = TerminalBuffer(6, 3)
+        buf.write("\u4e16\u4e16\u4e16") // three 世 filling 6 cells
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.insert("\u5730") // insert 地 (wide), shifts right by 2
+        assertEquals('\u5730', buf.getCell(0, 0).char)
+        assertTrue(buf.getCell(1, 0).isWideExtension)
+        assertEquals('\u4e16', buf.getCell(2, 0).char)
+        assertTrue(buf.getCell(3, 0).isWideExtension)
+        assertEquals('\u4e16', buf.getCell(4, 0).char)
+        assertTrue(buf.getCell(5, 0).isWideExtension)
+    }
+
+    @Test
     fun `fillLine with wide char on even-width line fills in pairs`() {
         val buf = TerminalBuffer(6, 3)
         buf.fillLine('\u4e16') // 世

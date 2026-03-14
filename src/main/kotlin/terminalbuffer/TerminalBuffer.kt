@@ -106,15 +106,65 @@ class TerminalBuffer(
                 advanceCursorToNextLine()
                 continue
             }
-            val line = screen[cursorRow]
-            for (i in (width - 1) downTo (cursorCol + 1)) {
-                line[i] = line[i - 1]
+            val charWidth = CharWidths.charWidth(c)
+            if (charWidth == 2) {
+                insertWideChar(c)
+            } else {
+                insertNarrowChar(c)
             }
-            line[cursorCol] = Cell(c, currentAttributes)
-            cursorCol++
-            if (cursorCol >= width) {
-                advanceCursorToNextLine()
-            }
+        }
+    }
+
+    private fun insertNarrowChar(c: Char) {
+        val line = screen[cursorRow]
+        // Shift right by 1; if the last cell is the primary of a wide pair, clear the orphaned extension
+        if (width >= 2 && line[width - 1].isWideExtension) {
+            line[width - 2] = Cell(attributes = line[width - 2].attributes)
+        }
+        for (i in (width - 1) downTo (cursorCol + 1)) {
+            line[i] = line[i - 1]
+        }
+        // If we're inserting into the extension half of a wide char, clear the primary
+        clearWideCharIfOverwriting()
+        line[cursorCol] = Cell(c, currentAttributes)
+        cursorCol++
+        if (cursorCol >= width) {
+            advanceCursorToNextLine()
+        }
+    }
+
+    private fun insertWideChar(c: Char) {
+        if (cursorCol >= width - 1) {
+            advanceCursorToNextLine()
+        }
+        val line = screen[cursorRow]
+        // Shift right by 2; handle wide pair split at boundary
+        val secondToLast = width - 2
+        // If the cell that will be pushed off is the primary of a wide pair, clear orphaned extension
+        if (line[width - 1].isWideExtension && !line[secondToLast].isWideExtension) {
+            // The primary at secondToLast is about to be shifted off — clear the extension already gone
+        }
+        // If a wide pair straddles the shift boundary (primary at secondToLast, ext at width-1), both fall off cleanly
+        // If only primary falls off (ext already off) or only ext falls off, clear the remaining orphan
+        val lastBeforeShift = line[width - 2]
+        val lastCell = line[width - 1]
+        if (!lastBeforeShift.isWideExtension && lastCell.isWideExtension) {
+            // Wide pair at (width-2, width-1) — both fall off, no orphan
+        } else if (lastBeforeShift.isWideExtension && !lastCell.isWideExtension) {
+            // Extension at width-2 about to fall off — clear the primary at width-3
+            if (width >= 3) line[width - 3] = Cell(attributes = line[width - 3].attributes)
+        }
+        for (i in (width - 1) downTo (cursorCol + 2)) {
+            line[i] = line[i - 2]
+        }
+        // Clear any orphaned wide char at the overwrite target
+        clearWideCharIfOverwriting()
+        clearWideCharIfOverwriting(cursorCol + 1)
+        line[cursorCol] = Cell(c, currentAttributes)
+        line[cursorCol + 1] = Cell(isWideExtension = true, attributes = currentAttributes)
+        cursorCol += 2
+        if (cursorCol >= width) {
+            advanceCursorToNextLine()
         }
     }
 
