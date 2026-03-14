@@ -616,6 +616,40 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `fillLine with wide char on even-width line fills in pairs`() {
+        val buf = TerminalBuffer(6, 3)
+        buf.fillLine('\u4e16') // 世
+        assertEquals('\u4e16', buf.getCell(0, 0).char)
+        assertTrue(buf.getCell(1, 0).isWideExtension)
+        assertEquals('\u4e16', buf.getCell(2, 0).char)
+        assertTrue(buf.getCell(3, 0).isWideExtension)
+        assertEquals('\u4e16', buf.getCell(4, 0).char)
+        assertTrue(buf.getCell(5, 0).isWideExtension)
+    }
+
+    @Test
+    fun `fillLine with wide char on odd-width line last cell is space`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.fillLine('\u4e16') // 世
+        assertEquals('\u4e16', buf.getCell(0, 0).char)
+        assertTrue(buf.getCell(1, 0).isWideExtension)
+        assertEquals('\u4e16', buf.getCell(2, 0).char)
+        assertTrue(buf.getCell(3, 0).isWideExtension)
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(4, 0).char)
+        assertFalse(buf.getCell(4, 0).isWideExtension)
+    }
+
+    @Test
+    fun `fillLine with normal char regression`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.fillLine('#')
+        for (col in 0..<5) {
+            assertEquals('#', buf.getCell(col, 0).char)
+            assertFalse(buf.getCell(col, 0).isWideExtension)
+        }
+    }
+
+    @Test
     fun `getCell out of row bounds throws`() {
         val buf = TerminalBuffer(10, 5)
         val ex1 = assertFailsWith<IllegalArgumentException> { buf.getCell(0, -1) }
