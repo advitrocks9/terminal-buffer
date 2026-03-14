@@ -187,13 +187,14 @@ class TerminalBufferTest {
     }
 
     @Test
-    fun `insert pushes content off right edge`() {
+    fun `insert cascades overflow to next line`() {
         val buf = TerminalBuffer(5, 3)
         buf.write("ABCDE")
         buf.setCursorPosition(col = 0, row = 0)
         buf.insert("X")
-        // "XABCD" — the E was pushed off
+        // "XABCD" on row 0, "E" cascades to row 1
         assertEquals("XABCD", buf.getScreenLine(0))
+        assertEquals("E", buf.getScreenLine(1))
     }
 
     @Test
@@ -613,6 +614,53 @@ class TerminalBufferTest {
         assertEquals(1, buf.height)
         assertEquals(0, buf.cursorCol)
         assertEquals(0, buf.cursorRow)
+    }
+
+    @Test
+    fun `insert causes multi-line cascade`() {
+        val buf = TerminalBuffer(3, 4)
+        buf.write("ABC")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("DEF")
+        buf.setCursorPosition(col = 0, row = 2)
+        buf.write("GHI")
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.insert("X")
+        // Row 0: XAB, C cascades to row 1
+        // Row 1: CDE, F cascades to row 2
+        // Row 2: FGH, I cascades to row 3
+        assertEquals("XAB", buf.getScreenLine(0))
+        assertEquals("CDE", buf.getScreenLine(1))
+        assertEquals("FGH", buf.getScreenLine(2))
+        assertEquals("I", buf.getScreenLine(3))
+    }
+
+    @Test
+    fun `insert cascade causes scrollback`() {
+        val buf = TerminalBuffer(3, 2)
+        buf.write("ABC")
+        buf.setCursorPosition(0, 1)
+        buf.fillLine('D')
+        buf.setCursorPosition(0, 0)
+        buf.insert("X")
+        assertEquals(1, buf.getScrollbackSize())
+        assertEquals("XAB", buf.getScrollbackLine(0))
+        assertEquals("CDD", buf.getScreenLine(0))
+        assertEquals("D", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `insert on last screen line causing scroll`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAAAA")
+        buf.setCursorPosition(0, 1)
+        buf.fillLine('B')
+        buf.setCursorPosition(0, 1)
+        buf.insert("X")
+        assertEquals(1, buf.getScrollbackSize())
+        assertEquals("AAAAA", buf.getScrollbackLine(0))
+        assertEquals("XBBBB", buf.getScreenLine(0))
+        assertEquals("B", buf.getScreenLine(1))
     }
 
     @Test

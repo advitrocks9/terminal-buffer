@@ -98,7 +98,7 @@ class TerminalBuffer(
 
     /**
      * Inserts text at cursor position, shifting existing content to the right.
-     * Characters pushed past the end of the line are lost (not cascaded to next line).
+     * Overflow cascades to the next line; scrolls up if it reaches the bottom.
      */
     fun insert(text: String) {
         for (c in text) {
@@ -116,48 +116,25 @@ class TerminalBuffer(
     }
 
     private fun insertNarrowChar(c: Char) {
-        val line = screen[cursorRow]
-        // Shift right by 1; if the last cell is the primary of a wide pair, clear the orphaned extension
-        if (width >= 2 && line[width - 1].isWideExtension) {
-            line[width - 2] = Cell(attributes = line[width - 2].attributes)
-        }
-        for (i in (width - 1) downTo (cursorCol + 1)) {
-            line[i] = line[i - 1]
-        }
-        // If we're inserting into the extension half of a wide char, clear the primary
+        val row = cursorRow
+        val line = screen[row]
+        val overflow = shiftLineRight(line, cursorCol, 1)
         clearWideCharIfOverwriting()
         line[cursorCol] = Cell(c, currentAttributes)
         cursorCol++
         if (cursorCol >= width) {
             advanceCursorToNextLine()
         }
+        cascadeOverflow(row + 1, overflow)
     }
 
     private fun insertWideChar(c: Char) {
         if (cursorCol >= width - 1) {
             advanceCursorToNextLine()
         }
-        val line = screen[cursorRow]
-        // Shift right by 2; handle wide pair split at boundary
-        val secondToLast = width - 2
-        // If the cell that will be pushed off is the primary of a wide pair, clear orphaned extension
-        if (line[width - 1].isWideExtension && !line[secondToLast].isWideExtension) {
-            // The primary at secondToLast is about to be shifted off — clear the extension already gone
-        }
-        // If a wide pair straddles the shift boundary (primary at secondToLast, ext at width-1), both fall off cleanly
-        // If only primary falls off (ext already off) or only ext falls off, clear the remaining orphan
-        val lastBeforeShift = line[width - 2]
-        val lastCell = line[width - 1]
-        if (!lastBeforeShift.isWideExtension && lastCell.isWideExtension) {
-            // Wide pair at (width-2, width-1) — both fall off, no orphan
-        } else if (lastBeforeShift.isWideExtension && !lastCell.isWideExtension) {
-            // Extension at width-2 about to fall off — clear the primary at width-3
-            if (width >= 3) line[width - 3] = Cell(attributes = line[width - 3].attributes)
-        }
-        for (i in (width - 1) downTo (cursorCol + 2)) {
-            line[i] = line[i - 2]
-        }
-        // Clear any orphaned wide char at the overwrite target
+        val row = cursorRow
+        val line = screen[row]
+        val overflow = shiftLineRight(line, cursorCol, 2)
         clearWideCharIfOverwriting()
         clearWideCharIfOverwriting(cursorCol + 1)
         line[cursorCol] = Cell(c, currentAttributes)
@@ -166,6 +143,66 @@ class TerminalBuffer(
         if (cursorCol >= width) {
             advanceCursorToNextLine()
         }
+        cascadeOverflow(row + 1, overflow)
+    }
+
+    /**
+     * Shifts cells in [line] right by [shiftBy] starting from [fromCol].
+     * Returns the cells that overflow the right edge. If a wide char pair would be split at
+     * the boundary, the primary is pulled into the overflow too (pair integrity preserved).
+     */
+    private fun shiftLineRight(line: Line, fromCol: Int, shiftBy: Int): List<Cell> {
+        if (shiftBy <= 0) return emptyList()
+
+        val overflowStart = width - shiftBy
+        if (overflowStart <= fromCol) {
+            return (fromCol..<width).map { line[it] }
+        }
+
+        // Pull primary into overflow if shifting would split a wide pair at the boundary
+        var actualOverflowStart = overflowStart
+        if (line[overflowStart].isWideExtension && !line[overflowStart - 1].isWideExtension) {
+            actualOverflowStart = overflowStart - 1
+        }
+
+        val overflow = (actualOverflowStart..<width).map { line[it] }
+
+        for (i in (width - 1) downTo (fromCol + shiftBy)) {
+            line[i] = line[i - shiftBy]
+        }
+
+        // Clear positions that were shifted into the line but are already captured in overflow
+        val extra = overflow.size - shiftBy
+        for (i in (width - extra)..<width) {
+            line[i] = Cell(attributes = line[i].attributes)
+        }
+
+        return overflow
+    }
+
+    /**
+     * Inserts [overflow] cells at column 0 of [targetRow], cascading further if needed.
+     * Scrolls up if the target row is beyond the screen bottom.
+     */
+    private fun cascadeOverflow(targetRow: Int, overflow: List<Cell>) {
+        if (overflow.isEmpty()) return
+        if (overflow.all { it.char == Cell.EMPTY_CHAR && !it.isWideExtension }) return
+
+        val row = if (targetRow >= height) {
+            scrollUp()
+            height - 1
+        } else {
+            targetRow
+        }
+
+        val line = screen[row]
+        val newOverflow = shiftLineRight(line, 0, overflow.size)
+
+        for (i in overflow.indices) {
+            if (i < width) line[i] = overflow[i]
+        }
+
+        cascadeOverflow(row + 1, newOverflow)
     }
 
     /**
