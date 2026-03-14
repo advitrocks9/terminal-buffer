@@ -24,7 +24,7 @@ class TerminalBuffer(
     var height: Int = height
         private set
 
-    internal var screen = Array(height) { Line(width) }
+    private var screen = Array(height) { Line(width) }
     private val scrollback = ScrollbackBuffer(maxScrollbackSize)
 
     var cursorRow: Int = 0
