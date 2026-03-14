@@ -48,7 +48,7 @@ internal class Line(val width: Int) {
         }
     }
 
-    /** Returns line text with trailing spaces trimmed, skipping wide extension cells. */
+    /** Returns line text with trailing spaces trimmed. */
     fun getText(): String =
         buildString {
             for (cell in cells) {
@@ -56,7 +56,7 @@ internal class Line(val width: Int) {
             }
         }.trimEnd()
 
-    /** Returns full line text without trimming (useful for testing). */
+    /** Returns full line text without trimming. */
     fun getTextRaw(): String =
         buildString {
             for (cell in cells) {

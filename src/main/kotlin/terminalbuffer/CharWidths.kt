@@ -1,11 +1,6 @@
 package terminalbuffer
 
-/**
- * Simplified terminal character width detection.
- *
- * Note: full emoji support would need surrogate pairs and Unicode combining
- * characters. This covers CJK and common wide character ranges only.
- */
+/** Terminal character width detection for CJK and common wide character ranges. */
 internal object CharWidths {
     fun charWidth(c: Char): Int {
         val code = c.code

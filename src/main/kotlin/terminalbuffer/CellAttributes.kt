@@ -1,9 +1,6 @@
 package terminalbuffer
 
-/**
- * Immutable set of visual attributes for a terminal cell.
- * Used both as "current attributes" on the buffer and stored per-cell.
- */
+/** Visual attributes for a terminal cell: colors and styles. */
 data class CellAttributes(
     val foreground: Color = Color.DEFAULT,
     val background: Color = Color.DEFAULT,

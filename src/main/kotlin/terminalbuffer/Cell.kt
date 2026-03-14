@@ -1,12 +1,6 @@
 package terminalbuffer
 
-/**
- * A single cell in the terminal grid.
- * [char] is the displayed character, or [EMPTY_CHAR] for a blank cell.
- *
- * Wide characters (CJK, etc.) occupy two cells: the primary cell holds the
- * character and the next cell is a "wide extension" marker.
- */
+/** A single cell in the terminal grid. */
 data class Cell(
     val char: Char = EMPTY_CHAR,
     val attributes: CellAttributes = CellAttributes.DEFAULT,

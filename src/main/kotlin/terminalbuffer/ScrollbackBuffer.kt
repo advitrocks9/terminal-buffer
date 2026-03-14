@@ -21,6 +21,8 @@ internal class ScrollbackBuffer(private val maxSize: Int) {
 
     operator fun get(index: Int): Line = lines[index]
 
+    fun removeLast(): Line? = if (lines.isEmpty()) null else lines.removeLast()
+
     fun clear() = lines.clear()
 
     fun isEmpty(): Boolean = lines.isEmpty()

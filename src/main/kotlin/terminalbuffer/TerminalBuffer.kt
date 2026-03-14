@@ -1,12 +1,8 @@
 package terminalbuffer
 
 /**
- * A terminal text buffer that stores a visible screen and a scrollback history.
- *
- * The screen is a grid of [width] x [height] cells. Text is written at the
- * cursor position, which advances and wraps as characters are added.
- * Lines that scroll off the top of the screen are stored in the scrollback
- * buffer up to [maxScrollbackSize] lines.
+ * A terminal text buffer with a [width] x [height] screen and scrollback history.
+ * Text is written at the cursor and wraps at line end.
  */
 class TerminalBuffer(
     width: Int,
@@ -42,7 +38,6 @@ class TerminalBuffer(
         cursorRow = row.coerceIn(0..<height)
     }
 
-    // Clamped to screen bounds; no line wrapping on cursor movement
     fun moveCursorUp(n: Int = 1) {
         if (n <= 0) return
         cursorRow = (cursorRow - n).coerceIn(0..<height)
@@ -75,7 +70,7 @@ class TerminalBuffer(
         currentAttributes = attributes
     }
 
-    // In real terminals, autowrap is a mode that can be toggled. We always autowrap here.
+    /** Writes text at cursor, overwriting existing content. Wraps at line end. */
     fun write(text: String) {
         for (c in text) {
             if (c == '\n') {
@@ -146,11 +141,6 @@ class TerminalBuffer(
         cascadeOverflow(row + 1, overflow)
     }
 
-    /**
-     * Shifts cells in [line] right by [shiftBy] starting from [fromCol].
-     * Returns the cells that overflow the right edge. If a wide char pair would be split at
-     * the boundary, the primary is pulled into the overflow too (pair integrity preserved).
-     */
     private fun shiftLineRight(line: Line, fromCol: Int, shiftBy: Int): List<Cell> {
         if (shiftBy <= 0) return emptyList()
 
@@ -159,7 +149,6 @@ class TerminalBuffer(
             return (fromCol..<width).map { line[it] }
         }
 
-        // Pull primary into overflow if shifting would split a wide pair at the boundary
         var actualOverflowStart = overflowStart
         if (line[overflowStart].isWideExtension && !line[overflowStart - 1].isWideExtension) {
             actualOverflowStart = overflowStart - 1
@@ -171,7 +160,6 @@ class TerminalBuffer(
             line[i] = line[i - shiftBy]
         }
 
-        // Clear positions that were shifted into the line but are already captured in overflow
         val extra = overflow.size - shiftBy
         for (i in (width - extra)..<width) {
             line[i] = Cell(attributes = line[i].attributes)
@@ -180,10 +168,6 @@ class TerminalBuffer(
         return overflow
     }
 
-    /**
-     * Inserts [overflow] cells at column 0 of [targetRow], cascading further if needed.
-     * Scrolls up if the target row is beyond the screen bottom.
-     */
     private fun cascadeOverflow(targetRow: Int, overflow: List<Cell>) {
         if (overflow.isEmpty()) return
         if (overflow.all { it.char == Cell.EMPTY_CHAR && !it.isWideExtension }) return
@@ -229,19 +213,13 @@ class TerminalBuffer(
         }
     }
 
-    /**
-     * If the cell at [col] on the current row is part of a wide character,
-     * clear the other half to avoid rendering artifacts.
-     */
     private fun clearWideCharIfOverwriting(col: Int = cursorCol) {
         if (col >= width) return
         val line = screen[cursorRow]
         val cell = line[col]
         if (cell.isWideExtension && col > 0) {
-            // We're overwriting the extension half — clear the primary
             line[col - 1] = Cell(attributes = line[col - 1].attributes)
         } else if (!cell.isWideExtension && col + 1 < width && line[col + 1].isWideExtension) {
-            // We're overwriting the primary half — clear the extension
             line[col + 1] = Cell(attributes = line[col + 1].attributes)
         }
     }
@@ -256,7 +234,6 @@ class TerminalBuffer(
     }
 
     private fun scrollUp() {
-        // Defensive copy: scrollback gets its own copy of the line
         scrollback.add(screen[0].copyOf())
         for (i in 1..<height) {
             screen[i - 1] = screen[i]
@@ -287,16 +264,7 @@ class TerminalBuffer(
         scrollback.clear()
     }
 
-    /**
-     * Resizes the screen to [newWidth] x [newHeight].
-     *
-     * - If height shrinks, extra bottom rows move to scrollback.
-     * - If height grows, lines are pulled from scrollback (if available) or empty lines are added.
-     * - Width changes truncate (narrower) or pad (wider) existing screen lines.
-     * - Scrollback lines keep their original width for simplicity.
-     *
-     * A production terminal would reflow wrapped lines here; we truncate/pad for simplicity.
-     */
+    /** Resizes the screen to [newWidth] x [newHeight]. */
     fun resize(
         newWidth: Int,
         newHeight: Int,
@@ -320,12 +288,18 @@ class TerminalBuffer(
             }
         } else {
             val extraRows = newHeight - height
-            // (We can't easily pull from ScrollbackBuffer since it's a queue,
-            //  so we only fill remaining rows with empty lines)
+            val pulled = mutableListOf<Line>()
+            repeat(extraRows) {
+                val line = scrollback.removeLast() ?: return@repeat
+                pulled.add(line)
+            }
+            pulled.reverse()
+            for (i in pulled.indices) {
+                copyLineContent(pulled[i], newScreen[i], newWidth)
+            }
             for (row in 0..<height) {
                 copyLineContent(screen[row], newScreen[extraRows + row], newWidth)
             }
-            // Extra rows at top are already empty Line(newWidth)
         }
 
         screen = newScreen

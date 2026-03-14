@@ -139,7 +139,6 @@ class TerminalBufferTest {
     fun `write at end of line wraps to next line`() {
         val buf = TerminalBuffer(5, 3)
         buf.write("ABCDE")
-        // Cursor should have wrapped
         assertEquals(0, buf.cursorCol)
         assertEquals(1, buf.cursorRow)
         buf.write("F")
@@ -150,10 +149,8 @@ class TerminalBufferTest {
     @Test
     fun `write past bottom of screen triggers scroll`() {
         val buf = TerminalBuffer(5, 2)
-        buf.write("AAAAA") // fills row 0, wraps to row 1
-        buf.write("BBBBB") // fills row 1, wraps -> scroll
-        // After scroll: row 0 should have "BBBBB", row 1 empty
-        // The original "AAAAA" line scrolled into scrollback
+        buf.write("AAAAA")
+        buf.write("BBBBB")
         assertEquals("BBBBB", buf.getScreenLine(0))
         assertEquals("", buf.getScreenLine(1))
     }
@@ -192,7 +189,6 @@ class TerminalBufferTest {
         buf.write("ABCDE")
         buf.setCursorPosition(col = 0, row = 0)
         buf.insert("X")
-        // "XABCD" on row 0, "E" cascades to row 1
         assertEquals("XABCD", buf.getScreenLine(0))
         assertEquals("E", buf.getScreenLine(1))
     }
@@ -251,8 +247,8 @@ class TerminalBufferTest {
     @Test
     fun `writing past screen bottom moves top line to scrollback`() {
         val buf = TerminalBuffer(5, 2)
-        buf.write("AAAAA") // row 0 full, wraps to row 1
-        buf.write("BBBBB") // row 1 full, wraps -> scroll
+        buf.write("AAAAA")
+        buf.write("BBBBB")
         assertEquals(1, buf.getScrollbackSize())
         assertEquals("AAAAA", buf.getScrollbackLine(0))
     }
@@ -263,7 +259,7 @@ class TerminalBufferTest {
         buf.setAttributes(fg = Color.RED)
         buf.write("HELLO")
         buf.setAttributes(fg = Color.DEFAULT)
-        buf.write("WORLD") // scroll happens
+        buf.write("WORLD")
         assertEquals("HELLO", buf.getScrollbackLine(0))
         assertEquals(Color.RED, buf.getScrollbackCell(0, 0).attributes.foreground)
     }
@@ -271,9 +267,9 @@ class TerminalBufferTest {
     @Test
     fun `scrollback evicts oldest line when max size exceeded`() {
         val buf = TerminalBuffer(3, 1, maxScrollbackSize = 2)
-        buf.write("AAA") // scroll -> scrollback: [AAA]
-        buf.write("BBB") // scroll -> scrollback: [AAA, BBB]
-        buf.write("CCC") // scroll -> evicts AAA -> scrollback: [BBB, CCC]
+        buf.write("AAA")
+        buf.write("BBB")
+        buf.write("CCC")
         assertEquals(2, buf.getScrollbackSize())
         assertEquals("BBB", buf.getScrollbackLine(0))
         assertEquals("CCC", buf.getScrollbackLine(1))
@@ -283,7 +279,7 @@ class TerminalBufferTest {
     fun `scrollback with max size 0 discards all scrolled-off lines`() {
         val buf = TerminalBuffer(5, 2, maxScrollbackSize = 0)
         buf.write("AAAAA")
-        buf.write("BBBBB") // scroll
+        buf.write("BBBBB")
         assertEquals(0, buf.getScrollbackSize())
     }
 
@@ -315,7 +311,6 @@ class TerminalBufferTest {
         buf.setCursorPosition(col = 0, row = 2)
         buf.write("CCC")
         buf.insertLine()
-        // "AAA" scrolled off, "BBB" is now row 0, "CCC" is now row 1, row 2 is empty
         assertEquals("BBB", buf.getScreenLine(0))
         assertEquals("CCC", buf.getScreenLine(1))
         assertEquals("", buf.getScreenLine(2))
@@ -325,7 +320,7 @@ class TerminalBufferTest {
     fun `clear screen empties screen but preserves scrollback`() {
         val buf = TerminalBuffer(5, 2)
         buf.write("AAAAA")
-        buf.write("BBBBB") // scroll
+        buf.write("BBBBB")
         assertEquals(1, buf.getScrollbackSize())
         buf.clearScreen()
         assertEquals("", buf.getScreenLine(0))
@@ -346,7 +341,7 @@ class TerminalBufferTest {
     fun `clear all empties everything`() {
         val buf = TerminalBuffer(5, 2)
         buf.write("AAAAA")
-        buf.write("BBBBB") // scroll
+        buf.write("BBBBB")
         buf.clearAll()
         assertEquals("", buf.getScreenLine(0))
         assertEquals(0, buf.getScrollbackSize())
@@ -356,7 +351,7 @@ class TerminalBufferTest {
     fun `get scrollback line returns correct content`() {
         val buf = TerminalBuffer(5, 1)
         buf.write("FIRST")
-        buf.write("SECND") // scroll
+        buf.write("SECND")
         assertEquals("FIRST", buf.getScrollbackLine(0))
     }
 
@@ -364,7 +359,7 @@ class TerminalBufferTest {
     fun `get scrollback cell returns correct cell`() {
         val buf = TerminalBuffer(3, 1)
         buf.write("ABC")
-        buf.write("DEF") // scroll
+        buf.write("DEF")
         assertEquals('A', buf.getScrollbackCell(0, 0).char)
         assertEquals('B', buf.getScrollbackCell(1, 0).char)
     }
@@ -372,15 +367,14 @@ class TerminalBufferTest {
     @Test
     fun `get full content includes scrollback and screen`() {
         val buf = TerminalBuffer(5, 2)
-        buf.write("AAAAA") // fills row 0, wraps to row 1
-        buf.write("BBBBB") // fills row 1, wraps -> scroll. scrollback: [AAAAA], screen: [BBBBB, ""]
+        buf.write("AAAAA")
+        buf.write("BBBBB")
         val content = buf.getFullContent()
         assertEquals("AAAAA\nBBBBB\n", content)
     }
 
     @Test
     fun `1x1 buffer write single char scrolls immediately`() {
-        // Writing at the last column triggers wrap, which scrolls on a 1x1
         val buf = TerminalBuffer(1, 1)
         buf.write("A")
         assertEquals("", buf.getScreenLine(0))
@@ -411,9 +405,9 @@ class TerminalBufferTest {
     @Test
     fun `maxScrollbackSize 1 keeps only one line`() {
         val buf = TerminalBuffer(3, 1, maxScrollbackSize = 1)
-        buf.write("AAA") // scroll
-        buf.write("BBB") // scroll, evicts AAA
-        buf.write("CCC") // scroll, evicts BBB
+        buf.write("AAA")
+        buf.write("BBB")
+        buf.write("CCC")
         assertEquals(1, buf.getScrollbackSize())
         assertEquals("CCC", buf.getScrollbackLine(0))
     }
@@ -468,20 +462,18 @@ class TerminalBufferTest {
     @Test
     fun `scrollback is not affected by subsequent screen writes`() {
         val buf = TerminalBuffer(5, 2)
-        buf.write("AAAAA") // row 0, wraps to row 1
-        buf.write("BBBBB") // row 1, wraps -> scroll. scrollback: [AAAAA]
+        buf.write("AAAAA")
+        buf.write("BBBBB")
         assertEquals("AAAAA", buf.getScrollbackLine(0))
-        // Now overwrite row 0 (which was shifted from old row 1)
         buf.setCursorPosition(col = 0, row = 0)
         buf.write("XXXXX")
-        // Scrollback should still have the original line
         assertEquals("AAAAA", buf.getScrollbackLine(0))
     }
 
     @Test
     fun `write CJK character occupies 2 cells`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16") // 世
+        buf.write("\u4e16")
         assertEquals('\u4e16', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
     }
@@ -489,22 +481,22 @@ class TerminalBufferTest {
     @Test
     fun `cursor advances by 2 after writing wide char`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16") // 世
+        buf.write("\u4e16")
         assertEquals(2, buf.cursorCol)
     }
 
     @Test
     fun `getText returns wide char once not twice`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16") // 世
+        buf.write("\u4e16")
         assertEquals("\u4e16", buf.getScreenLine(0))
     }
 
     @Test
     fun `wide char at end of line with only 1 cell left wraps`() {
         val buf = TerminalBuffer(5, 3)
-        buf.write("ABCD") // 4 chars, cursorCol = 4, only 1 cell left
-        buf.write("\u4e16") // needs 2 cells, should wrap
+        buf.write("ABCD")
+        buf.write("\u4e16")
         assertEquals("ABCD", buf.getScreenLine(0))
         assertEquals("\u4e16", buf.getScreenLine(1))
     }
@@ -512,9 +504,9 @@ class TerminalBufferTest {
     @Test
     fun `overwrite first cell of wide char clears extension`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16") // occupies cells 0,1
+        buf.write("\u4e16")
         buf.setCursorPosition(col = 0, row = 0)
-        buf.write("X") // overwrite primary cell
+        buf.write("X")
         assertEquals('X', buf.getCell(0, 0).char)
         assertFalse(buf.getCell(1, 0).isWideExtension)
     }
@@ -522,9 +514,9 @@ class TerminalBufferTest {
     @Test
     fun `overwrite extension cell of wide char clears primary`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16") // occupies cells 0,1
+        buf.write("\u4e16")
         buf.setCursorPosition(col = 1, row = 0)
-        buf.write("Y") // overwrite extension cell
+        buf.write("Y")
         assertEquals(Cell.EMPTY_CHAR, buf.getCell(0, 0).char)
         assertEquals('Y', buf.getCell(1, 0).char)
     }
@@ -532,7 +524,7 @@ class TerminalBufferTest {
     @Test
     fun `mix of normal and wide characters`() {
         val buf = TerminalBuffer(10, 3)
-        buf.write("A\u4e16B") // A + 世(2 cells) + B = 4 cells
+        buf.write("A\u4e16B")
         assertEquals("A\u4e16B", buf.getScreenLine(0))
         assertEquals(4, buf.cursorCol)
     }
@@ -547,7 +539,6 @@ class TerminalBufferTest {
         buf.write("CCC")
         buf.resize(5, 2)
         assertEquals(2, buf.height)
-        // Row 0 ("AAA") moved to scrollback; rows 1,2 become the new screen
         assertEquals(1, buf.getScrollbackSize())
         assertEquals("BBB", buf.getScreenLine(0))
         assertEquals("CCC", buf.getScreenLine(1))
@@ -561,7 +552,6 @@ class TerminalBufferTest {
         buf.write("BBB")
         buf.resize(5, 4)
         assertEquals(4, buf.height)
-        // Original content should be at rows 2,3 (pushed down)
         assertEquals("AAA", buf.getScreenLine(2))
         assertEquals("BBB", buf.getScreenLine(3))
         assertEquals("", buf.getScreenLine(0))
@@ -584,7 +574,6 @@ class TerminalBufferTest {
         buf.resize(10, 3)
         assertEquals(10, buf.width)
         assertEquals("Hi", buf.getScreenLine(0))
-        // Extra cells should be empty
         assertEquals(Cell.EMPTY_CHAR, buf.getCell(5, 0).char)
     }
 
@@ -617,6 +606,52 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `resize taller pulls lines from scrollback`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAAAA")
+        buf.write("BBBBB")
+        assertEquals(1, buf.getScrollbackSize())
+        buf.resize(5, 3)
+        assertEquals(0, buf.getScrollbackSize())
+        assertEquals("AAAAA", buf.getScreenLine(0))
+        assertEquals("BBBBB", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `resize taller with empty scrollback gets empty lines`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("Hello")
+        buf.resize(5, 4)
+        assertEquals("", buf.getScreenLine(0))
+        assertEquals("", buf.getScreenLine(1))
+        assertEquals("Hello", buf.getScreenLine(2))
+    }
+
+    @Test
+    fun `resize taller pulls only available scrollback lines`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAAAA")
+        buf.write("BBBBB")
+        assertEquals(1, buf.getScrollbackSize())
+        buf.resize(5, 5)
+        assertEquals(0, buf.getScrollbackSize())
+        assertEquals("AAAAA", buf.getScreenLine(0))
+        assertEquals("", buf.getScreenLine(1))
+        assertEquals("", buf.getScreenLine(2))
+        assertEquals("BBBBB", buf.getScreenLine(3))
+    }
+
+    @Test
+    fun `resize taller handles different width scrollback lines`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAAAA")
+        buf.write("BBBBB")
+        buf.resize(3, 3)
+        assertEquals("AAA", buf.getScreenLine(0))
+        assertEquals("BBB", buf.getScreenLine(1))
+    }
+
+    @Test
     fun `insert causes multi-line cascade`() {
         val buf = TerminalBuffer(3, 4)
         buf.write("ABC")
@@ -626,9 +661,6 @@ class TerminalBufferTest {
         buf.write("GHI")
         buf.setCursorPosition(col = 0, row = 0)
         buf.insert("X")
-        // Row 0: XAB, C cascades to row 1
-        // Row 1: CDE, F cascades to row 2
-        // Row 2: FGH, I cascades to row 3
         assertEquals("XAB", buf.getScreenLine(0))
         assertEquals("CDE", buf.getScreenLine(1))
         assertEquals("FGH", buf.getScreenLine(2))
@@ -668,7 +700,7 @@ class TerminalBufferTest {
         val buf = TerminalBuffer(10, 3)
         buf.write("ABCDE")
         buf.setCursorPosition(col = 0, row = 0)
-        buf.insert("\u4e16") // 世 — width 2
+        buf.insert("\u4e16")
         assertEquals('\u4e16', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
         assertEquals('A', buf.getCell(2, 0).char)
@@ -681,7 +713,7 @@ class TerminalBufferTest {
         val buf = TerminalBuffer(8, 3)
         buf.write("ABCDE")
         buf.setCursorPosition(col = 2, row = 0)
-        buf.insert("\u4e16") // insert 世 at col 2
+        buf.insert("\u4e16")
         assertEquals('A', buf.getCell(0, 0).char)
         assertEquals('B', buf.getCell(1, 0).char)
         assertEquals('\u4e16', buf.getCell(2, 0).char)
@@ -696,7 +728,6 @@ class TerminalBufferTest {
         val buf = TerminalBuffer(5, 3)
         buf.setCursorPosition(col = 4, row = 0)
         buf.insert("\u4e16")
-        // wide char doesn't fit at col 4 (needs 2 cells), so advances to row 1 and places there
         assertEquals(1, buf.cursorRow)
         assertEquals(2, buf.cursorCol)
         assertEquals('\u4e16', buf.getCell(0, 1).char)
@@ -706,9 +737,9 @@ class TerminalBufferTest {
     @Test
     fun `insert wide char splits existing wide pair at boundary clears orphan`() {
         val buf = TerminalBuffer(6, 3)
-        buf.write("\u4e16\u4e16\u4e16") // three 世 filling 6 cells
+        buf.write("\u4e16\u4e16\u4e16")
         buf.setCursorPosition(col = 0, row = 0)
-        buf.insert("\u5730") // insert 地 (wide), shifts right by 2
+        buf.insert("\u5730")
         assertEquals('\u5730', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
         assertEquals('\u4e16', buf.getCell(2, 0).char)
@@ -720,7 +751,7 @@ class TerminalBufferTest {
     @Test
     fun `fillLine with wide char on even-width line fills in pairs`() {
         val buf = TerminalBuffer(6, 3)
-        buf.fillLine('\u4e16') // 世
+        buf.fillLine('\u4e16')
         assertEquals('\u4e16', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
         assertEquals('\u4e16', buf.getCell(2, 0).char)
@@ -732,7 +763,7 @@ class TerminalBufferTest {
     @Test
     fun `fillLine with wide char on odd-width line last cell is space`() {
         val buf = TerminalBuffer(5, 3)
-        buf.fillLine('\u4e16') // 世
+        buf.fillLine('\u4e16')
         assertEquals('\u4e16', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
         assertEquals('\u4e16', buf.getCell(2, 0).char)
@@ -781,7 +812,7 @@ class TerminalBufferTest {
     @Test
     fun `getScrollbackLine out of bounds throws`() {
         val buf = TerminalBuffer(5, 1)
-        buf.write("AAAAA") // scroll
+        buf.write("AAAAA")
         val ex = assertFailsWith<IllegalArgumentException> { buf.getScrollbackLine(1) }
         assertTrue(ex.message!!.contains("size=1"))
     }
@@ -789,7 +820,7 @@ class TerminalBufferTest {
     @Test
     fun `getScrollbackCell out of bounds throws`() {
         val buf = TerminalBuffer(5, 1)
-        buf.write("AAAAA") // scroll
+        buf.write("AAAAA")
         val exRow = assertFailsWith<IllegalArgumentException> { buf.getScrollbackCell(0, 1) }
         assertTrue(exRow.message!!.contains("size=1"))
         val exCol = assertFailsWith<IllegalArgumentException> { buf.getScrollbackCell(5, 0) }
