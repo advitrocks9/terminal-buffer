@@ -535,4 +535,83 @@ class TerminalBufferTest {
         assertEquals("A\u4e16B", buf.getScreenLine(0))
         assertEquals(4, buf.cursorCol)
     }
+
+    @Test
+    fun `shrink height moves lines to scrollback`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("AAA")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("BBB")
+        buf.setCursorPosition(col = 0, row = 2)
+        buf.write("CCC")
+        buf.resize(5, 2)
+        assertEquals(2, buf.height)
+        // Row 0 ("AAA") moved to scrollback; rows 1,2 become the new screen
+        assertEquals(1, buf.getScrollbackSize())
+        assertEquals("BBB", buf.getScreenLine(0))
+        assertEquals("CCC", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `grow height adds empty lines at top`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAA")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("BBB")
+        buf.resize(5, 4)
+        assertEquals(4, buf.height)
+        // Original content should be at rows 2,3 (pushed down)
+        assertEquals("AAA", buf.getScreenLine(2))
+        assertEquals("BBB", buf.getScreenLine(3))
+        assertEquals("", buf.getScreenLine(0))
+        assertEquals("", buf.getScreenLine(1))
+    }
+
+    @Test
+    fun `shrink width truncates content`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("Hello World")
+        buf.resize(5, 3)
+        assertEquals(5, buf.width)
+        assertEquals("Hello", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `grow width pads with empty cells`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("Hi")
+        buf.resize(10, 3)
+        assertEquals(10, buf.width)
+        assertEquals("Hi", buf.getScreenLine(0))
+        // Extra cells should be empty
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(5, 0).char)
+    }
+
+    @Test
+    fun `cursor clamped after resize`() {
+        val buf = TerminalBuffer(10, 10)
+        buf.setCursorPosition(col = 8, row = 8)
+        buf.resize(5, 5)
+        assertEquals(4, buf.cursorCol)
+        assertEquals(4, buf.cursorRow)
+    }
+
+    @Test
+    fun `resize to same dimensions is a no-op`() {
+        val buf = TerminalBuffer(10, 5)
+        buf.write("Hello")
+        buf.resize(10, 5)
+        assertEquals("Hello", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `resize to 1x1`() {
+        val buf = TerminalBuffer(10, 5)
+        buf.write("Hello")
+        buf.resize(1, 1)
+        assertEquals(1, buf.width)
+        assertEquals(1, buf.height)
+        assertEquals(0, buf.cursorCol)
+        assertEquals(0, buf.cursorRow)
+    }
 }

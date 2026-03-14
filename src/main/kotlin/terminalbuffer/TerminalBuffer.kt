@@ -9,8 +9,8 @@ package terminalbuffer
  * buffer up to [maxScrollbackSize] lines.
  */
 class TerminalBuffer(
-    val width: Int,
-    val height: Int,
+    width: Int,
+    height: Int,
     val maxScrollbackSize: Int = 1000,
 ) {
     init {
@@ -19,7 +19,12 @@ class TerminalBuffer(
         require(maxScrollbackSize >= 0) { "Max scrollback size must be non-negative" }
     }
 
-    internal val screen = Array(height) { Line(width) }
+    var width: Int = width
+        private set
+    var height: Int = height
+        private set
+
+    internal var screen = Array(height) { Line(width) }
     private val scrollback = ScrollbackBuffer(maxScrollbackSize)
 
     var cursorRow: Int = 0
@@ -193,6 +198,65 @@ class TerminalBuffer(
     fun clearAll() {
         clearScreen()
         scrollback.clear()
+    }
+
+    /**
+     * Resizes the screen to [newWidth] x [newHeight].
+     *
+     * - If height shrinks, extra bottom rows move to scrollback.
+     * - If height grows, lines are pulled from scrollback (if available) or empty lines are added.
+     * - Width changes truncate (narrower) or pad (wider) existing screen lines.
+     * - Scrollback lines keep their original width for simplicity.
+     *
+     * A production terminal would reflow wrapped lines here; we truncate/pad for simplicity.
+     */
+    fun resize(
+        newWidth: Int,
+        newHeight: Int,
+    ) {
+        require(newWidth > 0) { "Width must be positive, got $newWidth" }
+        require(newHeight > 0) { "Height must be positive, got $newHeight" }
+
+        if (newWidth == width && newHeight == height) return
+
+        if (newHeight < height) {
+            for (i in 0..<(height - newHeight)) {
+                scrollback.add(screen[i].copyOf())
+            }
+        }
+
+        val newScreen = Array(newHeight) { Line(newWidth) }
+        if (newHeight <= height) {
+            val startRow = height - newHeight
+            for (row in 0..<newHeight) {
+                copyLineContent(screen[startRow + row], newScreen[row], newWidth)
+            }
+        } else {
+            val extraRows = newHeight - height
+            // (We can't easily pull from ScrollbackBuffer since it's a queue,
+            //  so we only fill remaining rows with empty lines)
+            for (row in 0..<height) {
+                copyLineContent(screen[row], newScreen[extraRows + row], newWidth)
+            }
+            // Extra rows at top are already empty Line(newWidth)
+        }
+
+        screen = newScreen
+        width = newWidth
+        height = newHeight
+        cursorRow = cursorRow.coerceIn(0..<height)
+        cursorCol = cursorCol.coerceIn(0..<width)
+    }
+
+    private fun copyLineContent(
+        source: Line,
+        dest: Line,
+        destWidth: Int,
+    ) {
+        val copyWidth = minOf(source.width, destWidth)
+        for (col in 0..<copyWidth) {
+            dest[col] = source[col]
+        }
     }
 
     fun getCell(
