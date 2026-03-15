@@ -288,6 +288,47 @@ class TerminalBuffer(
         scrollUp()
     }
 
+    /** Deletes [n] characters at cursor, shifting content left. Cursor does not move. */
+    fun deleteChar(n: Int = 1) {
+        if (n <= 0) return
+        val line = screen[cursorRow]
+        val effectiveN = minOf(n, width - cursorCol)
+
+        if (line[cursorCol].isWideExtension && cursorCol > 0) {
+            line[cursorCol - 1] = Cell(attributes = line[cursorCol - 1].attributes)
+        }
+        val afterDelete = cursorCol + effectiveN
+        if (afterDelete < width && line[afterDelete].isWideExtension) {
+            line[afterDelete] = Cell(attributes = line[afterDelete].attributes)
+        }
+
+        for (i in cursorCol..<(width - effectiveN)) {
+            line[i] = line[i + effectiveN]
+        }
+        for (i in (width - effectiveN)..<width) {
+            line[i] = Cell.EMPTY
+        }
+    }
+
+    /** Fills cells from cursor to end of line with empty. Cursor does not move. */
+    fun eraseToEndOfLine() {
+        val line = screen[cursorRow]
+        if (cursorCol < width && line[cursorCol].isWideExtension && cursorCol > 0) {
+            line[cursorCol - 1] = Cell.EMPTY
+        }
+        for (i in cursorCol..<width) {
+            line[i] = Cell.EMPTY
+        }
+    }
+
+    /** Removes the current row, shifts rows below up, blank line at bottom. */
+    fun deleteLine() {
+        for (i in cursorRow..<(height - 1)) {
+            screen[i] = screen[i + 1]
+        }
+        screen[height - 1] = Line(width)
+    }
+
     /** Clears all screen lines and resets cursor. Does not clear scrollback. */
     fun clearScreen() {
         for (i in 0..<height) {

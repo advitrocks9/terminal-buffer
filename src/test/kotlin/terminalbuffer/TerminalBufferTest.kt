@@ -816,8 +816,6 @@ class TerminalBufferTest {
         assertTrue(exCol.message!!.contains("width=5"))
     }
 
-    // --- Control characters ---
-
     @Test
     fun `write carriage return moves cursor to column 0`() {
         val buf = TerminalBuffer(10, 3)
@@ -876,5 +874,147 @@ class TerminalBufferTest {
         val buf = TerminalBuffer(20, 3)
         buf.write("\t\t")
         assertEquals(16, buf.cursorCol)
+    }
+
+    @Test
+    fun `deleteChar shifts content left`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.deleteChar()
+        assertEquals("ACDE", buf.getScreenLine(0))
+        assertEquals(1, buf.cursorCol)
+    }
+
+    @Test
+    fun `deleteChar with n greater than 1`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.deleteChar(3)
+        assertEquals("AE", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `deleteChar at end of content fills with empty`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 3, row = 0)
+        buf.deleteChar(2)
+        assertEquals("ABC", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `deleteChar with zero or negative n is no-op`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("ABC")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.deleteChar(0)
+        assertEquals("ABC", buf.getScreenLine(0))
+        buf.deleteChar(-1)
+        assertEquals("ABC", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `deleteChar n exceeding remaining width deletes to end`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("ABCDE")
+        buf.setCursorPosition(col = 3, row = 0)
+        buf.deleteChar(10)
+        assertEquals("ABC", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `deleteChar at wide extension clears orphaned primary`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\u4e16CD")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.deleteChar()
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(0, 0).char)
+        assertEquals('C', buf.getCell(1, 0).char)
+        assertEquals('D', buf.getCell(2, 0).char)
+    }
+
+    @Test
+    fun `deleteChar splitting wide pair at boundary clears orphaned extension`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("A\u4e16D")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.deleteChar()
+        assertEquals('A', buf.getCell(0, 0).char)
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(1, 0).char)
+        assertFalse(buf.getCell(1, 0).isWideExtension)
+        assertEquals('D', buf.getCell(2, 0).char)
+    }
+
+    @Test
+    fun `eraseToEndOfLine clears from cursor to end`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("HelloWorld")
+        buf.setCursorPosition(col = 5, row = 0)
+        buf.eraseToEndOfLine()
+        assertEquals("Hello", buf.getScreenLine(0))
+        assertEquals(5, buf.cursorCol)
+    }
+
+    @Test
+    fun `eraseToEndOfLine at start clears entire line`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("Hello")
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.eraseToEndOfLine()
+        assertEquals("", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `eraseToEndOfLine at wide extension clears primary too`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("A\u4e16CD")
+        buf.setCursorPosition(col = 2, row = 0)
+        buf.eraseToEndOfLine()
+        assertEquals('A', buf.getCell(0, 0).char)
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(1, 0).char)
+        assertFalse(buf.getCell(1, 0).isWideExtension)
+    }
+
+    @Test
+    fun `deleteLine removes current row and shifts below up`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("AAA")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("BBB")
+        buf.setCursorPosition(col = 0, row = 2)
+        buf.write("CCC")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.deleteLine()
+        assertEquals("AAA", buf.getScreenLine(0))
+        assertEquals("CCC", buf.getScreenLine(1))
+        assertEquals("", buf.getScreenLine(2))
+    }
+
+    @Test
+    fun `deleteLine at last row clears it`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("AAA")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("BBB")
+        buf.setCursorPosition(col = 0, row = 2)
+        buf.write("CCC")
+        buf.setCursorPosition(col = 0, row = 2)
+        buf.deleteLine()
+        assertEquals("AAA", buf.getScreenLine(0))
+        assertEquals("BBB", buf.getScreenLine(1))
+        assertEquals("", buf.getScreenLine(2))
+    }
+
+    @Test
+    fun `deleteLine does not affect scrollback`() {
+        val buf = TerminalBuffer(5, 2)
+        buf.write("AAA")
+        buf.setCursorPosition(col = 0, row = 1)
+        buf.write("BBB")
+        buf.setCursorPosition(col = 0, row = 0)
+        buf.deleteLine()
+        assertEquals(0, buf.getScrollbackSize())
     }
 }

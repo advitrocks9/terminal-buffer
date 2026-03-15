@@ -20,6 +20,7 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 - **Cursor movement**: absolute positioning, relative movement (up/down/left/right by N), clamped to screen bounds
 - **Write**: overwrites content at cursor, advancing and wrapping at line end
 - **Insert**: shifts existing content right, with overflow cascading to subsequent lines and triggering scroll if needed
+- **Delete**: `deleteChar(n)` shifts content left from cursor, `eraseToEndOfLine()` blanks cursor to end, `deleteLine()` removes the row and shifts below up
 - **Control characters**: `\r` (carriage return to col 0), `\b` (cursor left 1), `\t` (advance to next tab stop at multiple of 8), `\n` (next line)
 - **Fill line**: fills the cursor's row with a character
 - **Insert line**: pushes a blank line at the bottom, scrolling the top line into scrollback
@@ -50,7 +51,6 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 
 - **No rewrap on resize.** Changing width truncates or pads lines rather than reflowing text. Real terminals like xterm optionally rewrap, but this significantly complicates the resize logic and content tracking.
 - **Limited control characters.** `\n`, `\r`, `\b`, and `\t` are handled. Escape sequences (ANSI CSI, OSC, etc.) are not parsed — a real terminal would need an ANSI parser sitting in front of the buffer.
-- **No delete operations.** Delete-character, delete-line, and erase-to-end-of-line are standard terminal operations but weren't implemented.
 - **BMP-only wide chars.** Kotlin's `Char` is 16-bit, so characters outside the Basic Multilingual Plane (emoji, supplementary CJK) would need surrogate pair handling. The current `CharWidths` only covers BMP ranges.
 - **Overflow cascade growth.** When an insert cascade splits a wide character pair at the end of a line, the overflow grows by one cell. In pathological cases (every line ending with a wide char), this could compound across many lines. In practice this is unlikely to be an issue, but a production implementation would want to handle it more carefully.
 - **Cursor position on height shrink.** When the screen shrinks and the cursor's row gets pushed to scrollback, the cursor is clamped to the new bounds rather than tracking which content it was on. Different terminals handle this differently; there isn't one right answer.
