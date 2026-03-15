@@ -706,6 +706,38 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `insert narrow char at wide extension clears orphaned primary`() {
+        val buf = TerminalBuffer(6, 3)
+        buf.write("\u4e16AB")
+        buf.setCursorPosition(col = 1, row = 0)
+        buf.insert("X")
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(0, 0).char)
+        assertFalse(buf.getCell(0, 0).isWideExtension)
+        assertEquals('X', buf.getCell(1, 0).char)
+        assertFalse(buf.getCell(2, 0).isWideExtension)
+    }
+
+    @Test
+    fun `resize width truncation clears orphaned wide char at boundary`() {
+        val buf = TerminalBuffer(6, 2)
+        buf.write("AB\u4e16C")
+        buf.resize(3, 2)
+        assertEquals('A', buf.getCell(0, 0).char)
+        assertEquals('B', buf.getCell(1, 0).char)
+        assertEquals(Cell.EMPTY_CHAR, buf.getCell(2, 0).char)
+        assertFalse(buf.getCell(2, 0).isWideExtension)
+    }
+
+    @Test
+    fun `write wide char on width 1 buffer does not crash`() {
+        val buf = TerminalBuffer(1, 3)
+        buf.write("\u4e16")
+        assertEquals(0, buf.cursorCol)
+        assertEquals(1, buf.cursorRow)
+        assertFalse(buf.getCell(0, 0).isWideExtension)
+    }
+
+    @Test
     fun `fillLine with wide char on even-width line fills in pairs`() {
         val buf = TerminalBuffer(6, 3)
         buf.fillLine('\u4e16')

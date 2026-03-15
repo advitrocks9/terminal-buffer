@@ -56,14 +56,6 @@ internal class Line(val width: Int) {
             }
         }.trimEnd()
 
-    /** Returns full line text without trimming. */
-    fun getTextRaw(): String =
-        buildString {
-            for (cell in cells) {
-                if (!cell.isWideExtension) append(cell.char)
-            }
-        }
-
     fun copyOf(): Line {
         val copy = Line(width)
         for (i in cells.indices) {

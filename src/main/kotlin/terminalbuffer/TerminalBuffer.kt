@@ -113,8 +113,8 @@ class TerminalBuffer(
     private fun insertNarrowChar(c: Char) {
         val row = cursorRow
         val line = screen[row]
+        clearOrphanedWidePair(line, cursorCol)
         val overflow = shiftLineRight(line, cursorCol, 1)
-        clearWideCharIfOverwriting()
         line[cursorCol] = Cell(c, currentAttributes)
         cursorCol++
         if (cursorCol >= width) {
@@ -133,9 +133,8 @@ class TerminalBuffer(
         }
         val row = cursorRow
         val line = screen[row]
+        clearOrphanedWidePair(line, cursorCol)
         val overflow = shiftLineRight(line, cursorCol, 2)
-        clearWideCharIfOverwriting()
-        clearWideCharIfOverwriting(cursorCol + 1)
         line[cursorCol] = Cell(c, currentAttributes)
         line[cursorCol + 1] = Cell(isWideExtension = true, attributes = currentAttributes)
         cursorCol += 2
@@ -145,7 +144,11 @@ class TerminalBuffer(
         cascadeOverflow(row + 1, overflow)
     }
 
-    private fun shiftLineRight(line: Line, fromCol: Int, shiftBy: Int): List<Cell> {
+    private fun shiftLineRight(
+        line: Line,
+        fromCol: Int,
+        shiftBy: Int,
+    ): List<Cell> {
         if (shiftBy <= 0) return emptyList()
 
         val overflowStart = width - shiftBy
@@ -172,25 +175,34 @@ class TerminalBuffer(
         return overflow
     }
 
-    private fun cascadeOverflow(targetRow: Int, overflow: List<Cell>) {
-        if (overflow.isEmpty()) return
-        if (overflow.all { it.char == Cell.EMPTY_CHAR && !it.isWideExtension }) return
+    private fun cascadeOverflow(
+        targetRow: Int,
+        overflow: List<Cell>,
+    ) {
+        var currentOverflow = overflow
+        var currentTarget = targetRow
 
-        val row = if (targetRow >= height) {
-            scrollUp()
-            height - 1
-        } else {
-            targetRow
+        while (currentOverflow.isNotEmpty()) {
+            if (currentOverflow.all { it.char == Cell.EMPTY_CHAR && !it.isWideExtension }) return
+
+            val row =
+                if (currentTarget >= height) {
+                    scrollUp()
+                    height - 1
+                } else {
+                    currentTarget
+                }
+
+            val line = screen[row]
+            val newOverflow = shiftLineRight(line, 0, currentOverflow.size)
+
+            for (i in currentOverflow.indices) {
+                if (i < width) line[i] = currentOverflow[i]
+            }
+
+            currentOverflow = newOverflow
+            currentTarget = row + 1
         }
-
-        val line = screen[row]
-        val newOverflow = shiftLineRight(line, 0, overflow.size)
-
-        for (i in overflow.indices) {
-            if (i < width) line[i] = overflow[i]
-        }
-
-        cascadeOverflow(row + 1, newOverflow)
     }
 
     /**
@@ -202,6 +214,15 @@ class TerminalBuffer(
     }
 
     private fun writeWideChar(c: Char) {
+        if (width < 2) {
+            clearWideCharIfOverwriting()
+            screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
+            cursorCol++
+            if (cursorCol >= width) {
+                advanceCursorToNextLine()
+            }
+            return
+        }
         if (cursorCol >= width - 1) {
             advanceCursorToNextLine()
         }
@@ -214,6 +235,16 @@ class TerminalBuffer(
         cursorCol += 2
         if (cursorCol >= width) {
             advanceCursorToNextLine()
+        }
+    }
+
+    private fun clearOrphanedWidePair(
+        line: Line,
+        col: Int,
+    ) {
+        if (line[col].isWideExtension && col > 0) {
+            line[col - 1] = Cell(attributes = line[col - 1].attributes)
+            line[col] = Cell(attributes = line[col].attributes)
         }
     }
 
@@ -321,6 +352,9 @@ class TerminalBuffer(
         val copyWidth = minOf(source.width, destWidth)
         for (col in 0..<copyWidth) {
             dest[col] = source[col]
+        }
+        if (copyWidth in 1..<source.width && source[copyWidth].isWideExtension) {
+            dest[copyWidth - 1] = Cell(attributes = dest[copyWidth - 1].attributes)
         }
     }
 
