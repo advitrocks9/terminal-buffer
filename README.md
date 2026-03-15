@@ -25,7 +25,7 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 - **Fill line**: fills the cursor's row with a character
 - **Insert line**: pushes a blank line at the bottom, scrolling the top line into scrollback
 - **Clear**: clear screen only, or clear screen + scrollback
-- **Resize**: change screen dimensions, moving content to/from scrollback as needed
+- **Resize**: change screen dimensions, moving content to/from scrollback as needed; cursor tracks its content row on height shrink
 - **Content access**: individual cells (char + attributes), lines as strings, full screen/scrollback content
 
 ### Bonus Features
@@ -53,7 +53,7 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 - **Limited control characters.** `\n`, `\r`, `\b`, and `\t` are handled. Escape sequences (ANSI CSI, OSC, etc.) are not parsed — a real terminal would need an ANSI parser sitting in front of the buffer.
 - **BMP-only wide chars.** Kotlin's `Char` is 16-bit, so characters outside the Basic Multilingual Plane (emoji, supplementary CJK) would need surrogate pair handling. The current `CharWidths` only covers BMP ranges.
 - **Overflow cascade growth.** When an insert cascade splits a wide character pair at the end of a line, the overflow grows by one cell. In pathological cases (every line ending with a wide char), this could compound across many lines. In practice this is unlikely to be an issue, but a production implementation would want to handle it more carefully.
-- **Cursor position on height shrink.** When the screen shrinks and the cursor's row gets pushed to scrollback, the cursor is clamped to the new bounds rather than tracking which content it was on. Different terminals handle this differently; there isn't one right answer.
+- **Cursor position on height grow.** When growing height, the cursor row is clamped rather than shifted down to follow its content row. Different terminals handle this differently.
 - **Scrollback ring buffer.** The TODO in `ScrollbackBuffer` notes that a ring buffer would give O(1) eviction without deque overhead. Worth doing for large scrollback limits.
 
 ## Project Structure

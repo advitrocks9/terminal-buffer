@@ -540,7 +540,7 @@ class TerminalBufferTest {
         buf.setCursorPosition(col = 8, row = 8)
         buf.resize(5, 5)
         assertEquals(4, buf.cursorCol)
-        assertEquals(4, buf.cursorRow)
+        assertEquals(3, buf.cursorRow)
     }
 
     @Test
@@ -1016,5 +1016,22 @@ class TerminalBufferTest {
         buf.setCursorPosition(col = 0, row = 0)
         buf.deleteLine()
         assertEquals(0, buf.getScrollbackSize())
+    }
+
+    @Test
+    fun `resize shrink adjusts cursor row by pushed delta`() {
+        val buf = TerminalBuffer(5, 5)
+        buf.setCursorPosition(col = 2, row = 3)
+        buf.resize(5, 3)
+        assertEquals(1, buf.cursorRow)
+        assertEquals(2, buf.cursorCol)
+    }
+
+    @Test
+    fun `resize shrink clamps cursor to 0 when pushed past top`() {
+        val buf = TerminalBuffer(5, 5)
+        buf.setCursorPosition(col = 2, row = 1)
+        buf.resize(5, 3)
+        assertEquals(0, buf.cursorRow)
     }
 }

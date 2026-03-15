@@ -354,8 +354,9 @@ class TerminalBuffer(
 
         if (newWidth == width && newHeight == height) return
 
-        if (newHeight < height) {
-            for (i in 0..<(height - newHeight)) {
+        val rowsPushed = if (newHeight < height) height - newHeight else 0
+        if (rowsPushed > 0) {
+            for (i in 0..<rowsPushed) {
                 scrollback.add(screen[i].copyOf())
             }
         }
@@ -385,7 +386,7 @@ class TerminalBuffer(
         screen = newScreen
         width = newWidth
         height = newHeight
-        cursorRow = cursorRow.coerceIn(0..<height)
+        cursorRow = (cursorRow - rowsPushed).coerceIn(0..<height)
         cursorCol = cursorCol.coerceIn(0..<width)
     }
 
