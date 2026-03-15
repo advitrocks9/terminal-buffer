@@ -128,6 +128,14 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `setAttributes with CellAttributes object replaces current attributes`() {
+        val buf = TerminalBuffer(80, 24)
+        val attrs = CellAttributes(foreground = Color.GREEN, background = Color.RED, styles = setOf(Style.ITALIC))
+        buf.setAttributes(attrs)
+        assertEquals(attrs, buf.currentAttributes)
+    }
+
+    @Test
     fun `write string and cursor advances`() {
         val buf = TerminalBuffer(20, 5)
         buf.write("Hello")
@@ -421,7 +429,7 @@ class TerminalBufferTest {
     }
 
     @Test
-    fun `getScreenContent with mixed trailing spaces`() {
+    fun `getScreenContent empty last row produces trailing newline`() {
         val buf = TerminalBuffer(10, 3)
         buf.write("Hello")
         buf.setCursorPosition(col = 0, row = 1)

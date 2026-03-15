@@ -17,21 +17,21 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 
 ### Supported Operations
 
-- **Cursor movement**: absolute positioning, relative movement (up/down/left/right by N), clamped to screen bounds
-- **Write**: overwrites content at cursor, advancing and wrapping at line end
-- **Insert**: shifts existing content right, with overflow cascading to subsequent lines and triggering scroll if needed
-- **Delete**: `deleteChar(n)` shifts content left from cursor, `eraseToEndOfLine()` blanks cursor to end, `deleteLine()` removes the row and shifts below up
-- **Control characters**: `\r` (carriage return to col 0), `\b` (cursor left 1), `\t` (advance to next tab stop at multiple of 8), `\n` (next line)
-- **Fill line**: fills the cursor's row with a character
-- **Insert line**: pushes a blank line at the bottom, scrolling the top line into scrollback
-- **Clear**: clear screen only, or clear screen + scrollback
-- **Resize**: change screen dimensions, moving content to/from scrollback as needed; cursor tracks its content row on height shrink
-- **Content access**: individual cells (char + attributes), lines as strings, full screen/scrollback content
+* **Cursor movement**: absolute positioning, relative movement (up/down/left/right by N), clamped to screen bounds
+* **Write**: overwrites content at cursor, advancing and wrapping at line end
+* **Insert**: shifts existing content right, with overflow cascading to subsequent lines and triggering scroll if needed
+* **Delete**: `deleteChar(n)` shifts content left from cursor, `eraseToEndOfLine()` blanks cursor to end, `deleteLine()` removes the row and shifts below up
+* **Control characters**: `\r` (carriage return to col 0), `\b` (cursor left 1), `\t` (advance to next tab stop at multiple of 8), `\n` (next line)
+* **Fill line**: fills the cursor's row with a character
+* **Insert line**: pushes a blank line at the bottom, scrolling the top line into scrollback
+* **Clear**: clear screen only, or clear screen + scrollback
+* **Resize**: change screen dimensions, moving content to/from scrollback as needed; cursor tracks its content row on height shrink
+* **Content access**: individual cells (char + attributes), lines as strings, full screen/scrollback content
 
 ### Bonus Features
 
-- **Wide character support**: CJK characters (and fullwidth forms) occupy two cells. The buffer tracks primary/extension cell pairs and handles orphan cleanup when wide characters are partially overwritten, split by inserts, or truncated by resize.
-- **Resize**: shrinking height pushes top lines to scrollback; growing height pulls them back. Width changes truncate or pad content, with orphaned wide char pairs cleaned up at the boundary.
+* **Wide character support**: CJK characters (and fullwidth forms) occupy two cells. The buffer tracks primary/extension cell pairs and handles orphan cleanup when wide characters are partially overwritten, split by inserts, or truncated by resize.
+* **Resize**: shrinking height pushes top lines to scrollback; growing height pulls them back. Width changes truncate or pad content, with orphaned wide char pairs cleaned up at the boundary.
 
 ## Design Decisions
 
@@ -47,28 +47,28 @@ The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 
 **Resize strategy.** On height shrink, the top rows go to scrollback (preserving the bottom of the screen, which is where the most recent output lives). On height grow, lines are pulled back from scrollback. Width changes copy as much content as fits. The cursor is clamped to the new bounds. This is a simplification compared to what full terminal emulators do (some try to rewrap content), but it handles the common cases and keeps the implementation tractable.
 
-## Known Limitations / Possible Improvements
+## Limitations & Future Work
 
-- **No rewrap on resize.** Changing width truncates or pads lines rather than reflowing text. Real terminals like xterm optionally rewrap, but this significantly complicates the resize logic and content tracking.
-- **Limited control characters.** `\n`, `\r`, `\b`, and `\t` are handled. Escape sequences (ANSI CSI, OSC, etc.) are not parsed — a real terminal would need an ANSI parser sitting in front of the buffer.
-- **BMP-only wide chars.** Kotlin's `Char` is 16-bit, so characters outside the Basic Multilingual Plane (emoji, supplementary CJK) would need surrogate pair handling. The current `CharWidths` only covers BMP ranges.
-- **Overflow cascade growth.** When an insert cascade splits a wide character pair at the end of a line, the overflow grows by one cell. In pathological cases (every line ending with a wide char), this could compound across many lines. In practice this is unlikely to be an issue, but a production implementation would want to handle it more carefully.
-- **Cursor position on height grow.** When growing height, the cursor row is clamped rather than shifted down to follow its content row. Different terminals handle this differently.
-- **Scrollback ring buffer.** The TODO in `ScrollbackBuffer` notes that a ring buffer would give O(1) eviction without deque overhead. Worth doing for large scrollback limits.
+* **No rewrap on resize.** Changing width truncates or pads lines rather than reflowing text. Real terminals like xterm optionally rewrap, but this significantly complicates the resize logic and content tracking.
+* **Limited control characters.** `\n`, `\r`, `\b`, and `\t` are handled. Escape sequences (ANSI CSI, OSC, etc.) are not parsed - a real terminal would need an ANSI parser sitting in front of the buffer.
+* **BMP-only wide chars.** Kotlin's `Char` is 16-bit, so characters outside the Basic Multilingual Plane (emoji, supplementary CJK) would need surrogate pair handling. The current `CharWidths` only covers BMP ranges.
+* **Overflow cascade growth.** When an insert cascade splits a wide character pair at the end of a line, the overflow grows by one cell. In pathological cases (every line ending with a wide char), this could compound across many lines. In practice this is unlikely to be an issue, but a production implementation would want to handle it more carefully.
+* **Cursor position on height grow.** When growing height, the cursor row is clamped rather than shifted down to follow its content row. Different terminals handle this differently.
+* **Scrollback ring buffer.** The TODO in `ScrollbackBuffer` notes that a ring buffer would give O(1) eviction without deque overhead. Worth doing for large scrollback limits.
 
 ## Project Structure
 
 ```
 src/
   main/kotlin/terminalbuffer/
-    Cell.kt               — single grid cell (char + attributes + wide flag)
-    CellAttributes.kt     — foreground, background, styles
-    CharWidths.kt         — CJK/wide character width lookup
-    Color.kt              — 16 ANSI colors + default
-    Line.kt               — fixed-width row of cells
-    ScrollbackBuffer.kt   — bounded FIFO for scrollback history
-    Style.kt              — bold, italic, underline
-    TerminalBuffer.kt     — main buffer: screen + scrollback + cursor + editing
+    Cell.kt               - single grid cell (char + attributes + wide flag)
+    CellAttributes.kt     - foreground, background, styles
+    CharWidths.kt         - CJK/wide character width lookup
+    Color.kt              - 16 ANSI colors + default
+    Line.kt               - fixed-width row of cells
+    ScrollbackBuffer.kt   - bounded FIFO for scrollback history
+    Style.kt              - bold, italic, underline
+    TerminalBuffer.kt     - main buffer: screen + scrollback + cursor + editing
   test/kotlin/terminalbuffer/
     CellAttributesTest.kt
     LineTest.kt

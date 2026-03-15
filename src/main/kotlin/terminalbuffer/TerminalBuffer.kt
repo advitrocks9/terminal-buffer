@@ -101,15 +101,19 @@ class TerminalBuffer(
      */
     fun insert(text: String) {
         for (c in text) {
-            if (c == '\n') {
-                advanceCursorToNextLine()
-                continue
-            }
-            val charWidth = CharWidths.charWidth(c)
-            if (charWidth == 2) {
-                insertWideChar(c)
-            } else {
-                insertNarrowChar(c)
+            when (c) {
+                '\n' -> advanceCursorToNextLine()
+                '\r' -> cursorCol = 0
+                '\b' -> { if (cursorCol > 0) cursorCol-- }
+                '\t' -> cursorCol = minOf(((cursorCol / 8) + 1) * 8, width - 1)
+                else -> {
+                    val charWidth = CharWidths.charWidth(c)
+                    if (charWidth == 2) {
+                        insertWideChar(c)
+                    } else {
+                        insertNarrowChar(c)
+                    }
+                }
             }
         }
     }
