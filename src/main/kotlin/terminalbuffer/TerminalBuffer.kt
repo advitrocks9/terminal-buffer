@@ -124,6 +124,10 @@ class TerminalBuffer(
     }
 
     private fun insertWideChar(c: Char) {
+        if (width < 2) {
+            insertNarrowChar(c)
+            return
+        }
         if (cursorCol >= width - 1) {
             advanceCursorToNextLine()
         }

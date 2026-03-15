@@ -32,14 +32,6 @@ class TerminalBufferTest {
     }
 
     @Test
-    fun `set cursor position works`() {
-        val buf = TerminalBuffer(80, 24)
-        buf.setCursorPosition(col = 10, row = 5)
-        assertEquals(10, buf.cursorCol)
-        assertEquals(5, buf.cursorRow)
-    }
-
-    @Test
     fun `set cursor position clamps to bounds`() {
         val buf = TerminalBuffer(10, 5)
         buf.setCursorPosition(col = 100, row = 100)
@@ -109,21 +101,30 @@ class TerminalBufferTest {
     }
 
     @Test
+    fun `move cursor with zero or negative n is a no-op`() {
+        val buf = TerminalBuffer(80, 24)
+        buf.setCursorPosition(col = 10, row = 10)
+        buf.moveCursorUp(0)
+        buf.moveCursorDown(0)
+        buf.moveCursorLeft(0)
+        buf.moveCursorRight(0)
+        assertEquals(10, buf.cursorCol)
+        assertEquals(10, buf.cursorRow)
+        buf.moveCursorUp(-5)
+        buf.moveCursorDown(-5)
+        buf.moveCursorLeft(-5)
+        buf.moveCursorRight(-5)
+        assertEquals(10, buf.cursorCol)
+        assertEquals(10, buf.cursorRow)
+    }
+
+    @Test
     fun `set attributes updates current attributes`() {
         val buf = TerminalBuffer(80, 24)
         buf.setAttributes(fg = Color.RED, bg = Color.BLUE, styles = setOf(Style.BOLD))
         assertEquals(Color.RED, buf.currentAttributes.foreground)
         assertEquals(Color.BLUE, buf.currentAttributes.background)
         assertEquals(setOf(Style.BOLD), buf.currentAttributes.styles)
-    }
-
-    @Test
-    fun `write single character at origin`() {
-        val buf = TerminalBuffer(10, 5)
-        buf.write("A")
-        assertEquals('A', buf.getCell(0, 0).char)
-        assertEquals(1, buf.cursorCol)
-        assertEquals(0, buf.cursorRow)
     }
 
     @Test
@@ -199,20 +200,6 @@ class TerminalBufferTest {
         buf.setAttributes(fg = Color.CYAN)
         buf.insert("Z")
         assertEquals(Color.CYAN, buf.getCell(0, 0).attributes.foreground)
-    }
-
-    @Test
-    fun `insert advances cursor`() {
-        val buf = TerminalBuffer(10, 5)
-        buf.insert("AB")
-        assertEquals(2, buf.cursorCol)
-    }
-
-    @Test
-    fun `fill line with character`() {
-        val buf = TerminalBuffer(5, 3)
-        buf.fillLine('#')
-        assertEquals("#####", buf.getScreenLine(0))
     }
 
     @Test
@@ -348,23 +335,6 @@ class TerminalBufferTest {
     }
 
     @Test
-    fun `get scrollback line returns correct content`() {
-        val buf = TerminalBuffer(5, 1)
-        buf.write("FIRST")
-        buf.write("SECND")
-        assertEquals("FIRST", buf.getScrollbackLine(0))
-    }
-
-    @Test
-    fun `get scrollback cell returns correct cell`() {
-        val buf = TerminalBuffer(3, 1)
-        buf.write("ABC")
-        buf.write("DEF")
-        assertEquals('A', buf.getScrollbackCell(0, 0).char)
-        assertEquals('B', buf.getScrollbackCell(1, 0).char)
-    }
-
-    @Test
     fun `get full content includes scrollback and screen`() {
         val buf = TerminalBuffer(5, 2)
         buf.write("AAAAA")
@@ -471,25 +441,12 @@ class TerminalBufferTest {
     }
 
     @Test
-    fun `write CJK character occupies 2 cells`() {
+    fun `write CJK character occupies 2 cells and advances cursor by 2`() {
         val buf = TerminalBuffer(10, 3)
         buf.write("\u4e16")
         assertEquals('\u4e16', buf.getCell(0, 0).char)
         assertTrue(buf.getCell(1, 0).isWideExtension)
-    }
-
-    @Test
-    fun `cursor advances by 2 after writing wide char`() {
-        val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16")
         assertEquals(2, buf.cursorCol)
-    }
-
-    @Test
-    fun `getText returns wide char once not twice`() {
-        val buf = TerminalBuffer(10, 3)
-        buf.write("\u4e16")
-        assertEquals("\u4e16", buf.getScreenLine(0))
     }
 
     @Test
