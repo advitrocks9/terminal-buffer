@@ -73,19 +73,23 @@ class TerminalBuffer(
     /** Writes text at cursor, overwriting existing content. Wraps at line end. */
     fun write(text: String) {
         for (c in text) {
-            if (c == '\n') {
-                advanceCursorToNextLine()
-                continue
-            }
-            val charWidth = CharWidths.charWidth(c)
-            if (charWidth == 2) {
-                writeWideChar(c)
-            } else {
-                clearWideCharIfOverwriting()
-                screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
-                cursorCol++
-                if (cursorCol >= width) {
-                    advanceCursorToNextLine()
+            when (c) {
+                '\n' -> advanceCursorToNextLine()
+                '\r' -> cursorCol = 0
+                '\b' -> { if (cursorCol > 0) cursorCol-- }
+                '\t' -> cursorCol = minOf(((cursorCol / 8) + 1) * 8, width - 1)
+                else -> {
+                    val charWidth = CharWidths.charWidth(c)
+                    if (charWidth == 2) {
+                        writeWideChar(c)
+                    } else {
+                        clearWideCharIfOverwriting()
+                        screen[cursorRow][cursorCol] = Cell(c, currentAttributes)
+                        cursorCol++
+                        if (cursorCol >= width) {
+                            advanceCursorToNextLine()
+                        }
+                    }
                 }
             }
         }

@@ -815,4 +815,66 @@ class TerminalBufferTest {
         val exCol = assertFailsWith<IllegalArgumentException> { buf.getScrollbackCell(5, 0) }
         assertTrue(exCol.message!!.contains("width=5"))
     }
+
+    // --- Control characters ---
+
+    @Test
+    fun `write carriage return moves cursor to column 0`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("Hello")
+        buf.write("\r")
+        assertEquals(0, buf.cursorCol)
+        assertEquals(0, buf.cursorRow)
+        buf.write("XX")
+        assertEquals("XXllo", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `write backspace moves cursor left by 1`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("ABC")
+        buf.write("\b")
+        assertEquals(2, buf.cursorCol)
+        buf.write("X")
+        assertEquals("ABX", buf.getScreenLine(0))
+    }
+
+    @Test
+    fun `write backspace at column 0 is no-op`() {
+        val buf = TerminalBuffer(10, 3)
+        buf.write("\b")
+        assertEquals(0, buf.cursorCol)
+        assertEquals(0, buf.cursorRow)
+    }
+
+    @Test
+    fun `write tab advances to next multiple of 8`() {
+        val buf = TerminalBuffer(20, 3)
+        buf.write("AB\tC")
+        assertEquals(9, buf.cursorCol)
+        assertEquals('A', buf.getCell(0, 0).char)
+        assertEquals('B', buf.getCell(1, 0).char)
+        assertEquals('C', buf.getCell(8, 0).char)
+    }
+
+    @Test
+    fun `write tab at column 0 advances to 8`() {
+        val buf = TerminalBuffer(20, 3)
+        buf.write("\t")
+        assertEquals(8, buf.cursorCol)
+    }
+
+    @Test
+    fun `write tab clamps to last column`() {
+        val buf = TerminalBuffer(5, 3)
+        buf.write("\t")
+        assertEquals(4, buf.cursorCol)
+    }
+
+    @Test
+    fun `write tab from column 8 advances to 16`() {
+        val buf = TerminalBuffer(20, 3)
+        buf.write("\t\t")
+        assertEquals(16, buf.cursorCol)
+    }
 }

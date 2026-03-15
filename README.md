@@ -1,55 +1,77 @@
 # Terminal Text Buffer
 
-A terminal text buffer in Kotlin — the data structure at the heart of any terminal emulator. It manages the grid of character cells that the shell writes to and the UI renders from.
+A terminal text buffer implementation in Kotlin: the core data structure behind terminal emulators, responsible for storing, editing, and scrolling displayed text.
 
-## Building and Running
+## Building & Testing
 
-```sh
-./gradlew build        # compile + test
-./gradlew test         # tests only
-./gradlew ktlintCheck  # lint
+```bash
+./gradlew build
+./gradlew test
 ```
 
-Needs JDK 21+.
+## Overview
 
-## How It Works
+The buffer models a terminal as a fixed-size grid of character cells, each holding a character, foreground/background color, and style flags. Text is written at a movable cursor position. When content scrolls off the top of the screen, it's preserved in a bounded scrollback history.
 
-The buffer is split into two parts: a **screen** (the visible grid, e.g. 80x24) and a **scrollback** (lines that scrolled off the top, kept around for history). Each row is a `Line` — a fixed-width array of `Cell` objects. Each cell stores a character plus its attributes (foreground color, background color, bold/italic/underline).
+The main entry point is `TerminalBuffer(width, height, maxScrollbackSize)`.
 
-`Cell` and `CellAttributes` are immutable data classes. The buffer itself is mutable — writing text advances the cursor, wraps at line edges, and scrolls when you hit the bottom. Lines scrolled off the top get copied into the scrollback.
+### Supported Operations
 
-The main operations:
+- **Cursor movement**: absolute positioning, relative movement (up/down/left/right by N), clamped to screen bounds
+- **Write**: overwrites content at cursor, advancing and wrapping at line end
+- **Insert**: shifts existing content right, with overflow cascading to subsequent lines and triggering scroll if needed
+- **Control characters**: `\r` (carriage return to col 0), `\b` (cursor left 1), `\t` (advance to next tab stop at multiple of 8), `\n` (next line)
+- **Fill line**: fills the cursor's row with a character
+- **Insert line**: pushes a blank line at the bottom, scrolling the top line into scrollback
+- **Clear**: clear screen only, or clear screen + scrollback
+- **Resize**: change screen dimensions, moving content to/from scrollback as needed
+- **Content access**: individual cells (char + attributes), lines as strings, full screen/scrollback content
 
-- `write(text)` — overwrites cells at the cursor position and advances the cursor. This is what normal terminal output does.
-- `insert(text)` — inserts at the cursor, shifting existing content right. Overflow cascades to the next line (and scrolls if it reaches the bottom).
-- `fillLine(char)` — fills the entire current row with a character.
-- `setCursorPosition`, `moveCursorUp/Down/Left/Right` — cursor manipulation, clamped to screen bounds.
-- `clearScreen()`, `clearAll()`, `insertLine()` — screen management.
-- `resize(w, h)` — changes screen dimensions, moving lines to/from scrollback as needed.
+### Bonus Features
 
-Wide characters (CJK, fullwidth forms, etc.) are supported using a dual-cell approach where the first cell holds the character and the second is marked as a placeholder.
+- **Wide character support**: CJK characters (and fullwidth forms) occupy two cells. The buffer tracks primary/extension cell pairs and handles orphan cleanup when wide characters are partially overwritten, split by inserts, or truncated by resize.
+- **Resize**: shrinking height pushes top lines to scrollback; growing height pulls them back. Width changes truncate or pad content, with orphaned wide char pairs cleaned up at the boundary.
 
 ## Design Decisions
 
-**Dense arrays for lines.** Terminal lines are short (80-200 cols) and mostly filled, so a flat array per line is simpler and faster than a sparse structure. Random access for cursor-addressed writes is O(1).
+**Cell as a data class.** Each cell is an immutable value holding its character, attributes, and a flag for wide character extensions. Immutability keeps reasoning simple since cells are replaced rather than mutated.
 
-**ArrayDeque for scrollback.** It gives O(1) add/remove at both ends, which is what a bounded FIFO needs. A ring buffer over a flat array would be better for huge scrollback sizes, but ArrayDeque is fine for the typical 1000-10000 line range.
+**Line as a fixed-width array.** Each line is backed by a plain `Array<Cell>`. This gives O(1) random access for reads and writes, which matters because terminal operations are fundamentally cell-indexed. The tradeoff is that lines can't grow or shrink without copying, but terminal lines are fixed-width by definition so this fits naturally.
 
-**Defensive copy on scroll.** When a line moves from screen to scrollback, it gets copied. Otherwise the scrollback would hold a reference to a `Line` that the screen then mutates. I considered move semantics (nulling out the screen slot) but copying is simpler and avoids a class of bugs.
+**ScrollbackBuffer with ArrayDeque.** Scrollback is a bounded FIFO. `ArrayDeque` gives O(1) append and O(1) eviction from the front, which is good enough for the expected scrollback sizes (hundreds to low thousands of lines). For very large scrollback (100k+ lines), a ring buffer backed by a flat array would avoid the overhead of deque node allocation, but that felt like premature optimisation here.
 
-**Cursor clamping vs wrapping.** Cursor movement commands (up/down/left/right) clamp to screen bounds. Character output autowraps. This matches how real terminals handle cursor-movement escape sequences vs normal character output.
+**Insert cascade.** Inserting text shifts content right, and any overflow at the end of the line cascades down to the next line. If the overflow reaches the bottom of the screen, it triggers a scroll. This mirrors how real terminal insert-character operations work. The cascade tracks wide character boundary splits to avoid leaving orphaned extension cells.
 
-**Insert cascading.** When `insert()` pushes content past the end of a line, the overflow gets cascaded to the next line rather than being dropped. If the overflow reaches the bottom of the screen, the top line scrolls into scrollback. This felt like the right behavior even though it adds complexity — dropping characters silently seemed worse.
+**Wide character handling.** Wide chars are stored as a primary cell followed by an extension cell. Any operation that would overwrite only half of a wide pair cleans up the other half. This includes: writing over the primary or extension cell, inserting at an extension cell, shifting content that splits a pair at the line boundary, and resizing width to truncate a pair. The approach is straightforward but adds checks in several code paths.
 
-**Wide character handling.** A wide character takes two cells: the real character in the first cell and a `isWideExtension = true` marker in the second. When either half gets overwritten, the other half is cleared to avoid rendering artifacts. Width detection covers CJK unified ideographs, hiragana, katakana, hangul, fullwidth forms, and a few other Unicode blocks. It doesn't handle surrogate pairs or emoji ZWJ sequences — that would need something like a proper `wcwidth` table.
+**Resize strategy.** On height shrink, the top rows go to scrollback (preserving the bottom of the screen, which is where the most recent output lives). On height grow, lines are pulled back from scrollback. Width changes copy as much content as fits. The cursor is clamped to the new bounds. This is a simplification compared to what full terminal emulators do (some try to rewrap content), but it handles the common cases and keeps the implementation tractable.
 
-**Resize strategy.** Shrinking the height pushes top lines to scrollback. Growing pulls them back. Width changes truncate or pad — no line reflow. Scrollback lines keep their original width. This is the simple approach; a production terminal would re-wrap lines when the width changes.
+## Known Limitations / Possible Improvements
 
-## What I'd Do Next
+- **No rewrap on resize.** Changing width truncates or pads lines rather than reflowing text. Real terminals like xterm optionally rewrap, but this significantly complicates the resize logic and content tracking.
+- **Limited control characters.** `\n`, `\r`, `\b`, and `\t` are handled. Escape sequences (ANSI CSI, OSC, etc.) are not parsed — a real terminal would need an ANSI parser sitting in front of the buffer.
+- **No delete operations.** Delete-character, delete-line, and erase-to-end-of-line are standard terminal operations but weren't implemented.
+- **BMP-only wide chars.** Kotlin's `Char` is 16-bit, so characters outside the Basic Multilingual Plane (emoji, supplementary CJK) would need surrogate pair handling. The current `CharWidths` only covers BMP ranges.
+- **Overflow cascade growth.** When an insert cascade splits a wide character pair at the end of a line, the overflow grows by one cell. In pathological cases (every line ending with a wide char), this could compound across many lines. In practice this is unlikely to be an issue, but a production implementation would want to handle it more carefully.
+- **Cursor position on height shrink.** When the screen shrinks and the cursor's row gets pushed to scrollback, the cursor is clamped to the new bounds rather than tracking which content it was on. Different terminals handle this differently; there isn't one right answer.
+- **Scrollback ring buffer.** The TODO in `ScrollbackBuffer` notes that a ring buffer would give O(1) eviction without deque overhead. Worth doing for large scrollback limits.
 
-- **Line reflow on resize** — re-wrap long lines to the new width instead of just truncating. This is the biggest missing piece for a real terminal.
-- **Full Unicode width handling** — use a proper width table instead of hardcoded ranges. Handle surrogate pairs and combining characters.
-- **Alternate screen buffer** — the secondary buffer that programs like vim and less switch to, so they don't pollute scrollback.
-- **Tab stops** — right now tabs aren't handled at all.
-- **Escape sequence parsing** — a layer on top of the buffer that interprets VT100/xterm control sequences and translates them into buffer operations.
-- **Memory-mapped scrollback** — for very large histories, swap old lines to disk instead of keeping everything in memory.
+## Project Structure
+
+```
+src/
+  main/kotlin/terminalbuffer/
+    Cell.kt               — single grid cell (char + attributes + wide flag)
+    CellAttributes.kt     — foreground, background, styles
+    CharWidths.kt         — CJK/wide character width lookup
+    Color.kt              — 16 ANSI colors + default
+    Line.kt               — fixed-width row of cells
+    ScrollbackBuffer.kt   — bounded FIFO for scrollback history
+    Style.kt              — bold, italic, underline
+    TerminalBuffer.kt     — main buffer: screen + scrollback + cursor + editing
+  test/kotlin/terminalbuffer/
+    CellAttributesTest.kt
+    LineTest.kt
+    ScrollbackBufferTest.kt
+    TerminalBufferTest.kt
+```
